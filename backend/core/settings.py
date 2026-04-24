@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     # Third-party extensions
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     
     # SkillTree AI Custom Apps

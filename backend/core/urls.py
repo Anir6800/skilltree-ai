@@ -10,9 +10,7 @@ from rest_framework_simplejwt.views import (
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # Authentication API
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # Core Application APIs
     
     # Custom App APIs
     path('api/auth/', include('auth_app.urls', namespace='auth_app')),
