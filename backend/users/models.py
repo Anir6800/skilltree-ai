@@ -26,3 +26,21 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} (Lvl {self.level})"
+
+class XPLog(models.Model):
+    """
+    Log of XP gained by a user. Used for history charts.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='xp_logs')
+    amount = models.IntegerField()
+    source = models.CharField(max_length=200) # e.g. "Quest: Python Basics"
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} +{self.amount} XP from {self.source}"

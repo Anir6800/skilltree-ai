@@ -10,7 +10,9 @@ from rest_framework_simplejwt.views import (
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # Core Application APIs
+    # SimpleJWT token endpoints (referenced by frontend constants as /api/token/)
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     # Custom App APIs
     path('api/auth/', include('auth_app.urls', namespace='auth_app')),
@@ -22,5 +24,5 @@ urlpatterns = [
 
 # Serve media and static files during development
 if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_address=settings.STATIC_ROOT)
-    urlpatterns += static(settings.MEDIA_URL, document_address=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

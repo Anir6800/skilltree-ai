@@ -86,9 +86,25 @@ const useAuthStore = create(
           
           return user;
         } catch (error) {
-          const errorMessage = error.response?.data?.detail || 
-            error.response?.data?.message || 
-            'Registration failed. Please try again.';
+          let errorMessage = 'Registration failed. Please try again.';
+          
+          if (error.response?.data) {
+            const data = error.response.data;
+            if (data.detail) {
+              errorMessage = data.detail;
+            } else if (data.message) {
+              errorMessage = data.message;
+            } else if (typeof data === 'object') {
+              // Extract first error from field errors
+              const firstField = Object.keys(data)[0];
+              const firstError = data[firstField];
+              if (Array.isArray(firstError)) {
+                errorMessage = `${firstField}: ${firstError[0]}`;
+              } else if (typeof firstError === 'string') {
+                errorMessage = `${firstField}: ${firstError}`;
+              }
+            }
+          }
           
           set({
             isLoading: false,

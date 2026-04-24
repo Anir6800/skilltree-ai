@@ -177,6 +177,10 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True').lower() == 'true'
 
+# [CSRF]
+# Required for Django 4.0+ to allow cross-origin POST requests
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
 # [Password Validation]
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

@@ -39,20 +39,27 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
+            print(f"DEBUG: Registration failed - Email {value} already exists")
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 
     def validate(self, attrs):
+        print(f"DEBUG: Registering user: {attrs.get('username')}, email: {attrs.get('email')}")
+        
         if attrs['password'] != attrs['password_confirm']:
+            print("DEBUG: Password mismatch")
             raise serializers.ValidationError({"password": "Password fields didn't match."})
         
         # Additional strength check if not already covered by validators
         password = attrs['password']
         if not any(char.isdigit() for char in password):
+            print("DEBUG: Password missing digit")
             raise serializers.ValidationError({"password": "Password must contain at least one digit."})
         if not any(char.isupper() for char in password):
+            print("DEBUG: Password missing uppercase")
             raise serializers.ValidationError({"password": "Password must contain at least one uppercase letter."})
             
+        print("DEBUG: Registration validation successful")
         return attrs
 
     def create(self, validated_data):
@@ -83,6 +90,8 @@ class LoginSerializer(CustomTokenObtainPairSerializer):
         username = attrs.get("username")
         password = attrs.get("password")
 
+        print(f"DEBUG: Login attempt - email: {email}, username: {username}")
+
         if not email and not username:
             raise serializers.ValidationError("Either username or email is required.")
         
@@ -95,11 +104,16 @@ class LoginSerializer(CustomTokenObtainPairSerializer):
             try:
                 user = User.objects.get(email=identifier)
                 attrs["username"] = user.username
+                print(f"DEBUG: Resolved email {identifier} to username {user.username}")
             except User.DoesNotExist:
-                # If email doesn't exist, let super().validate() handle the failure
-                # but we need to set the username for simplejwt
+                print(f"DEBUG: Email {identifier} not found, falling back to identifier as username")
                 attrs["username"] = identifier
         else:
             attrs["username"] = identifier
+            print(f"DEBUG: Using identifier {identifier} as username")
             
-        return super().validate(attrs)
+        try:
+            return super().validate(attrs)
+        except Exception as e:
+            print(f"DEBUG: super().validate failed: {str(e)}")
+            raise e

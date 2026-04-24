@@ -15,7 +15,11 @@ class QuestListSerializer(serializers.ModelSerializer):
         ]
 
     def get_status(self, obj):
-        user = self.context.get('request').user
+        request = self.context.get('request')
+        if not request:
+            return 'not_started'
+            
+        user = request.user
         if not user or not user.is_authenticated:
             return 'not_started'
         

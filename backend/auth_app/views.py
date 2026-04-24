@@ -40,6 +40,7 @@ class LoginView(TokenObtainPairView):
     Secure login endpoint using CustomTokenObtainPairSerializer.
     Returns access and refresh tokens.
     """
+    permission_classes = (permissions.AllowAny,)
     serializer_class = LoginSerializer
 
 class LogoutView(APIView):

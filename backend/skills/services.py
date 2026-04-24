@@ -3,6 +3,7 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 from datetime import timedelta
 from quests.models import QuestSubmission
+from users.models import XPLog
 from .models import SkillProgress, Skill
 
 User = get_user_model()
@@ -28,12 +29,19 @@ def award_xp(user, quest):
             
         user.last_active = today
         
-        # 3. Update Level: level = xp // 500 + 1
+        # 3. Create XP Log
+        XPLog.objects.create(
+            user=user,
+            amount=xp_gained,
+            source=f"Quest: {quest.title}"
+        )
+        
+        # 4. Update Level: level = xp // 500 + 1
         # The User model's save method already handles this calculation, 
         # but we can do it explicitly for the return value.
         user.save()
         
-        # 4. Check Skill Completion
+        # 5. Check Skill Completion
         skill = quest.skill
         total_quests = skill.quests.count()
         completed_quests = QuestSubmission.objects.filter(

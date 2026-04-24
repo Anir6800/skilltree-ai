@@ -140,38 +140,18 @@ function AuthPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
-    useAuthStore.setState({ isLoading: true, error: null });
-
     try {
-      const api = (await import('../api/api')).default;
-      let response;
-
       if (isLogin) {
-        response = await api.post('/api/auth/login/', {
-          username: formData.username, // Supports username or email
-          password: formData.password,
-        });
+        await login(formData.username, formData.password);
       } else {
-        response = await api.post('/api/auth/register/', {
-          username: formData.username,
-          email: formData.email,
-          password: formData.password,
-          password_confirm: formData.passwordConfirm,
-        });
-
-        // Auto-login after registration if desired, or just use the response if it returns tokens
-        // Usually register returns { user, access, refresh }
+        await register(formData);
       }
-
-      const { user: userData, access, refresh } = response.data;
-      login(userData, access, refresh);
-
+      
+      // Navigate to destination
       navigate(from, { replace: true });
     } catch (err) {
-      const msg = err.response?.data?.detail || err.response?.data?.message || 'Authentication failed';
-      useAuthStore.setState({ error: msg, isLoading: false });
-    } finally {
-      useAuthStore.setState({ isLoading: false });
+      // Error is already handled by the store, but we can add local UI effects if needed
+      console.error('Auth error:', err);
     }
   };
 
