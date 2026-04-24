@@ -23,14 +23,12 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # [Security Policy for Production]
-if not DEBUG:
-    # Redirect all non-HTTPS requests to HTTPS
-    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
-    
-    # Use secure cookies for sessions and CSRF protection
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    
+# These settings follow the .env configuration
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False').lower() == 'true'
+
+if not DEBUG and SECURE_SSL_REDIRECT:
     # HTTP Strict Transport Security (HSTS)
     # Set to 1 year (31536000 seconds)
     SECURE_HSTS_SECONDS = 31536000
@@ -137,12 +135,12 @@ CHANNEL_LAYERS = {
 
 # [Celery]
 # Async task processing for AI evaluation and skill tree updates.
-CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', REDIS_URL)
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', REDIS_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'UTC'
+CELERY_TIMEZONE = os.getenv('TIME_ZONE', 'UTC')
 
 # [REST Framework]
 # Global settings for SkillTree AI APIs.
@@ -158,10 +156,10 @@ REST_FRAMEWORK = {
 }
 
 # [Simple JWT]
-# 60-minute access tokens and 7-day refresh tokens for immersive session management.
+# Configurable token lifetimes for immersive session management.
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.getenv('JWT_ACCESS_LIFETIME_MINUTES', 60))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.getenv('JWT_REFRESH_LIFETIME_DAYS', 7))),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'ALGORITHM': 'HS256',
@@ -171,8 +169,12 @@ SIMPLE_JWT = {
 
 # [CORS]
 # Allowed origins defined via environment variable (comma-separated).
-CORS_ORIGINS_RAW = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_RAW.split(',') if origin.strip()]
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() 
+    for origin in os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',') 
+    if origin.strip()
+]
+CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True').lower() == 'true'
 
 # [Password Validation]
 AUTH_PASSWORD_VALIDATORS = [
@@ -184,9 +186,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # [Internationalization]
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = os.getenv('TIME_ZONE', 'Asia/Kolkata')
 USE_I18N = True
-USE_TZ = True
+USE_TZ = os.getenv('USE_TZ', 'True').lower() == 'true'
 
 # [Static & Media]
 # Static files (CSS, JavaScript, Images) and User-uploaded media.
@@ -198,3 +200,18 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # [Default Primary Key]
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# [SkillTree AI Integration Settings]
+# These settings are used by the AI Evaluation and Docker Executor services.
+LM_STUDIO_URL = os.getenv('LM_STUDIO_URL', 'http://localhost:1234/v1')
+LM_STUDIO_MODEL = os.getenv('LM_STUDIO_MODEL', 'openai/gpt-oss-20b')
+CHROMA_PATH = os.getenv('CHROMA_PATH', './chroma_db')
+
+EXECUTION_TIMEOUT = int(os.getenv('EXECUTION_TIMEOUT_SECONDS', 10))
+EXECUTION_MEMORY = int(os.getenv('EXECUTION_MEMORY_MB', 128))
+EXECUTION_CPU_QUOTA = int(os.getenv('EXECUTION_CPU_QUOTA', 50000))
+
+# [Email]
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 1025))
