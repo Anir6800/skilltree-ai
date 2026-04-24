@@ -1,13 +1,8 @@
-/**
- * SkillTree AI - Router Configuration
- * React Router v7 configuration with AuthGuard
- * @module router
- */
+import React from 'react';
+import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
+import useAuthStore from './store/authStore';
 
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-import AuthGuard from './components/layout/AuthGuard';
-
-// Page imports
+// Page component imports
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import SkillTreePage from './pages/SkillTreePage';
@@ -22,22 +17,87 @@ import MentorPage from './pages/MentorPage';
 import AdminPage from './pages/AdminPage';
 
 /**
- * Create router with all routes
- * @type {import('react-router-dom').Router}
+ * AuthGuard Component
+ * Prevents access to protected routes if the user is not authenticated.
+ * @param {Object} props
+ * @param {React.ReactNode} props.children
+ * @param {boolean} [props.requireAdmin=false]
+ */
+const AuthGuard = ({ children, requireAdmin = false }) => {
+  const { isAuthenticated, user } = useAuthStore();
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    // Redirect to login but save the current location to redirect back after login
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requireAdmin && user?.role !== 'admin') {
+    // User is not an admin, redirect to safe dashboard
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+/**
+ * PublicGuard Component
+ * Redirects authenticated users away from public-only routes (like login/register).
+ * @param {Object} props
+ * @param {React.ReactNode} props.children
+ */
+const PublicGuard = ({ children }) => {
+  const { isAuthenticated } = useAuthStore();
+  
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+/**
+ * SkillTree AI Router Configuration
+ * React Router v7 with role-based protected routes
  */
 const router = createBrowserRouter([
-  {
-    path: '/auth',
-    element: <AuthPage />,
-  },
+  // Public Entry / Fallback
   {
     path: '/',
     element: (
       <AuthGuard>
-        <DashboardPage />
+        <Navigate to="/dashboard" replace />
       </AuthGuard>
     ),
   },
+
+  // Auth Routes
+  {
+    path: '/login',
+    element: (
+      <PublicGuard>
+        <AuthPage isLogin={true} />
+      </PublicGuard>
+    ),
+  },
+  {
+    path: '/register',
+    element: (
+      <PublicGuard>
+        <AuthPage isLogin={false} />
+      </PublicGuard>
+    ),
+  },
+  {
+    path: '/auth', // Combined auth page if needed
+    element: (
+      <PublicGuard>
+        <AuthPage />
+      </PublicGuard>
+    ),
+  },
+
+  // Protected Main Routes
   {
     path: '/dashboard',
     element: (
@@ -63,7 +123,7 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: '/quests',
+    path: '/quests/:questId',
     element: (
       <AuthGuard>
         <QuestPage />
@@ -71,21 +131,15 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: '/quests/:id',
-    element: (
-      <AuthGuard>
-        <QuestPage />
-      </AuthGuard>
-    ),
-  },
-  {
-    path: '/editor',
+    path: '/editor/:questId',
     element: (
       <AuthGuard>
         <EditorPage />
       </AuthGuard>
     ),
   },
+
+  // Multiplayer & Social
   {
     path: '/arena',
     element: (
@@ -95,7 +149,7 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: '/match/:id',
+    path: '/match/:matchId',
     element: (
       <AuthGuard>
         <MatchPage />
@@ -110,8 +164,10 @@ const router = createBrowserRouter([
       </AuthGuard>
     ),
   },
+
+  // User & Support
   {
-    path: '/profile',
+    path: '/profile/:userId',
     element: (
       <AuthGuard>
         <ProfilePage />
@@ -126,6 +182,8 @@ const router = createBrowserRouter([
       </AuthGuard>
     ),
   },
+
+  // Management
   {
     path: '/admin',
     element: (
@@ -134,6 +192,8 @@ const router = createBrowserRouter([
       </AuthGuard>
     ),
   },
+
+  // Catch-all
   {
     path: '*',
     element: <Navigate to="/dashboard" replace />,

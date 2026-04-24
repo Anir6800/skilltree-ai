@@ -7,10 +7,57 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, ShieldCheck, ArrowRight, Sparkles, Zap } from 'lucide-react';
+import { Mail, Lock, User, ShieldCheck, ArrowRight, Sparkles, Zap, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import CinemaContainer from '../components/layout/CinemaContainer';
 import PulsingCore from '../components/nexus/PulsingCore';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+/**
+ * Custom Icons for Brand Logos (Removed in Lucide v1.0+)
+ */
+const Github = ({ size = 24, className = "" }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+    <path d="M9 18c-4.51 2-5-2-7-2" />
+  </svg>
+);
+
+const Twitter = ({ size = 24, className = "" }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+  </svg>
+);
+
+/**
+ * Utility for tailwind classes merging
+ */
+function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
 
 /**
  * Authentication page component
@@ -20,8 +67,9 @@ function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, register, isLoading, error, clearError } = useAuthStore();
-  
+
   const [isLogin, setIsLogin] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -29,12 +77,22 @@ function AuthPage() {
     passwordConfirm: '',
   });
   const [validationError, setValidationError] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState(0);
 
   const from = location.state?.from?.pathname || '/dashboard';
 
   useEffect(() => {
     clearError();
   }, [isLogin]);
+
+  useEffect(() => {
+    let strength = 0;
+    if (formData.password.length >= 8) strength += 25;
+    if (/[A-Z]/.test(formData.password)) strength += 25;
+    if (/[0-9]/.test(formData.password)) strength += 25;
+    if (/[^A-Za-z0-9]/.test(formData.password)) strength += 25;
+    setPasswordStrength(strength);
+  }, [formData.password]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -48,7 +106,7 @@ function AuthPage() {
       setValidationError('Username is required');
       return false;
     }
-    
+
     if (!isLogin) {
       if (!formData.email.trim()) {
         setValidationError('Email is required');
@@ -59,38 +117,71 @@ function AuthPage() {
         return false;
       }
     }
-    
+
     if (!formData.password) {
       setValidationError('Password is required');
       return false;
     }
-    
+
     if (formData.password.length < 8) {
       setValidationError('Password must be at least 8 characters');
       return false;
     }
-    
+
     if (!isLogin && formData.password !== formData.passwordConfirm) {
       setValidationError('Passwords do not match');
       return false;
     }
-    
+
     return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-    
+
+    useAuthStore.setState({ isLoading: true, error: null });
+
     try {
+      const api = (await import('../api/api')).default;
+      let response;
+
       if (isLogin) {
-        await login(formData.username, formData.password);
+        response = await api.post('/api/auth/login/', {
+          username: formData.username, // Supports username or email
+          password: formData.password,
+        });
       } else {
-        await register(formData);
+        response = await api.post('/api/auth/register/', {
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          password_confirm: formData.passwordConfirm,
+        });
+
+        // Auto-login after registration if desired, or just use the response if it returns tokens
+        // Usually register returns { user, access, refresh }
       }
+
+      const { user: userData, access, refresh } = response.data;
+      login(userData, access, refresh);
+
       navigate(from, { replace: true });
     } catch (err) {
-      // Handled by store
+      const msg = err.response?.data?.detail || err.response?.data?.message || 'Authentication failed';
+      useAuthStore.setState({ error: msg, isLoading: false });
+    } finally {
+      useAuthStore.setState({ isLoading: false });
+    }
+  };
+
+  const handleGithubLogin = () => {
+    window.location.href = '/api/auth/oauth/github/';
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleSubmit(e);
     }
   };
 
@@ -104,7 +195,7 @@ function AuthPage() {
       </div>
 
       {/* Content Overlay */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
@@ -124,7 +215,7 @@ function AuthPage() {
             >
               <Zap size={32} className="text-white" fill="currentColor" />
             </motion.div>
-            
+
             <h1 className="text-5xl font-black tracking-tighter mb-2">
               SKILLTREE <span className="premium-gradient-text uppercase">AI</span>
             </h1>
@@ -161,7 +252,7 @@ function AuthPage() {
 
                 {/* Email (Register only) */}
                 {!isLogin && (
-                  <motion.div 
+                  <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     className="form-input-container"
@@ -187,21 +278,53 @@ function AuthPage() {
                   <label className="form-label-premium"><Lock size={12} className="inline mr-1 mb-0.5" /> Security Key</label>
                   <div className="relative">
                     <input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       name="password"
                       value={formData.password}
                       onChange={handleChange}
-                      className="form-input-premium pl-12 pr-4"
+                      className={cn("form-input-premium pl-12 pr-12", validationError && validationError.includes('Password') && "border-red-500/50 bg-red-500/5")}
                       placeholder="••••••••"
                       required
                     />
                     <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
+
+                  {/* Strength Indicator */}
+                  {formData.password && (
+                    <div className="mt-3 px-1">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Integrity Level</span>
+                        <span className={cn(
+                          "text-[9px] font-bold uppercase",
+                          passwordStrength <= 25 ? "text-red-500" : passwordStrength <= 50 ? "text-orange-500" : "text-emerald-500"
+                        )}>
+                          {passwordStrength <= 25 ? "Vulnerable" : passwordStrength <= 50 ? "Encrypted" : "Quantum Secure"}
+                        </span>
+                      </div>
+                      <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${passwordStrength}%` }}
+                          className={cn(
+                            "h-full transition-colors duration-500",
+                            passwordStrength <= 25 ? "bg-red-500" : passwordStrength <= 50 ? "bg-orange-500" : "bg-emerald-500"
+                          )}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Confirm Password (Register only) */}
                 {!isLogin && (
-                  <motion.div 
+                  <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     className="form-input-container"
@@ -213,7 +336,7 @@ function AuthPage() {
                         name="passwordConfirm"
                         value={formData.passwordConfirm}
                         onChange={handleChange}
-                        className="form-input-premium pl-12 pr-4"
+                        className={cn("form-input-premium pl-12 pr-4", validationError && validationError.includes('Passwords') && "border-red-500/50 bg-red-500/5")}
                         placeholder="••••••••"
                         required
                       />
@@ -247,6 +370,25 @@ function AuthPage() {
             >
               <span>{isLoading ? 'Processing...' : isLogin ? 'Initialize Sequence' : 'Create Identity'}</span>
               {!isLoading && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />}
+            </button>
+
+            {/* GitHub OAuth Button */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/5"></div>
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase">
+                <span className="bg-[#030712] px-4 text-slate-500 font-bold tracking-widest">External Uplink</span>
+              </div>
+            </div>
+
+            <button 
+              type="button"
+              onClick={handleGithubLogin}
+              className="w-full py-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-3 text-xs font-bold text-slate-400 hover:bg-white/10 hover:text-white transition-all duration-300 group"
+            >
+              <Github size={18} className="group-hover:scale-110 transition-transform" />
+              Sync with Github
             </button>
           </form>
 

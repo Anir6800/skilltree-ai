@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Cpu, Zap, Activity, Users, Settings, Award, Shield, Terminal, Database } from 'lucide-react';
+import useAuthStore from './store/authStore';
+
+// Components
 import CinemaContainer from './components/layout/CinemaContainer';
 import SkillNexus from './components/nexus/SkillNexus';
 import ExplodingCard from './components/ui/ExplodingCard';
 import SpatialCarousel from './components/ui/SpatialCarousel';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { Cpu, Zap, Activity, Users, Settings, Award, Shield, Terminal, Database } from 'lucide-react';
 
 const SidebarItem = ({ icon: Icon, label, active }) => (
   <motion.div
@@ -16,9 +19,19 @@ const SidebarItem = ({ icon: Icon, label, active }) => (
   </motion.div>
 );
 
+/**
+ * SkillTree AI Root Component
+ * Handles core session rehydration and main layout Shell
+ */
 const App = () => {
+  const { user, rehydrate, isAuthenticated } = useAuthStore();
   const [activeTab, setActiveTab] = useState('nexus');
   const [selectedNode, setSelectedNode] = useState(null);
+
+  // Call rehydrate on mount as requested
+  useEffect(() => {
+    rehydrate();
+  }, [rehydrate]);
 
   const handleNodeClick = (node) => {
     setSelectedNode(node);
@@ -55,34 +68,46 @@ const App = () => {
       <header className="fixed top-0 left-20 right-0 h-20 px-12 flex items-center justify-between z-40 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
         <div className="flex items-center space-x-8 pointer-events-auto">
           <div className="glass-card px-6 py-2 rounded-full flex items-center space-x-3">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">System: Online</span>
+            <div className={`w-2 h-2 rounded-full ${isAuthenticated ? 'bg-primary animate-pulse' : 'bg-slate-500'}`} />
+            <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+              System: {isAuthenticated ? 'Online' : 'Restricted'}
+            </span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Current Level</span>
-            <span className="text-2xl font-black tracking-tighter glow-text">LEVEL 12</span>
-          </div>
+          {isAuthenticated && (
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Current Level</span>
+              <span className="text-2xl font-black tracking-tighter glow-text">LEVEL {user?.level || 1}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center space-x-6 pointer-events-auto">
-          <div className="text-right">
-            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">XP Progress</span>
-            <div className="w-48 h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: '75%' }}
-                transition={{ duration: 2, ease: "easeOut" }}
-                className="h-full bg-gradient-to-r from-primary to-accent shadow-[0_0_10px_#6366f1]" 
-              />
-            </div>
-          </div>
-          <div className="w-12 h-12 rounded-full border-2 border-primary/30 p-1">
-            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Anir6800" alt="Avatar" className="w-full h-full rounded-full" />
-          </div>
+          {isAuthenticated && (
+            <>
+              <div className="text-right">
+                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">XP Progress</span>
+                <div className="w-48 h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min((user?.xp || 0) % 1000 / 10, 100)}%` }}
+                    transition={{ duration: 2, ease: "easeOut" }}
+                    className="h-full bg-gradient-to-r from-primary to-accent shadow-[0_0_10px_#6366f1]" 
+                  />
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-full border-2 border-primary/30 p-1">
+                <img 
+                  src={user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'Guest'}`} 
+                  alt="Avatar" 
+                  className="w-full h-full rounded-full" 
+                />
+              </div>
+            </>
+          )}
         </div>
       </header>
 
-      {/* Narrative Content */}
+      {/* Main Content Area */}
       <main className="relative z-30 pt-32 pl-32 pr-12 pb-12 overflow-visible">
         {/* Section 1: Hero */}
         <section className="min-h-screen flex flex-col justify-center max-w-xl">
@@ -113,7 +138,7 @@ const App = () => {
           )}
         </section>
 
-        {/* Section 2: Match History (Spatial Carousel) */}
+        {/* Section 2: Match History */}
         <section className="min-h-screen flex flex-col justify-center items-center pointer-events-none">
           <motion.div
             initial={{ opacity: 0, y: 100 }}
@@ -143,16 +168,16 @@ const App = () => {
             className="glass-panel p-12 rounded-3xl max-w-4xl mx-auto grid grid-cols-3 gap-12"
           >
             <div className="text-center">
-              <div className="text-5xl font-black text-white mb-2">84%</div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cognitive Sync</div>
+              <div className="text-5xl font-black text-white mb-2">{user?.streak || 0}</div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Day Streak</div>
             </div>
             <div className="text-center">
-              <div className="text-5xl font-black text-primary mb-2">1.2s</div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Execution Latency</div>
+              <div className="text-5xl font-black text-primary mb-2">{user?.xp || 0}</div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total XP</div>
             </div>
             <div className="text-center">
-              <div className="text-5xl font-black text-accent mb-2">24</div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active Nodes</div>
+              <div className="text-5xl font-black text-accent mb-2">{user?.level || 1}</div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Current Tier</div>
             </div>
           </motion.div>
         </section>
