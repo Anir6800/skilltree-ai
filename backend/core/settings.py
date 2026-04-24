@@ -1,0 +1,200 @@
+import os
+from pathlib import Path
+from datetime import timedelta
+import dj_database_url
+from dotenv import load_dotenv
+
+# Load environment variables from .env file at the top
+load_dotenv()
+
+# [Paths]
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# [Security]
+# SECRET_KEY is loaded from environment; MUST be long and random in production.
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-skilltree-ai-immersive-platform-v1-production-ready-key-replace-this')
+
+# DEBUG mode is controlled via environment variable. 
+# WARNING: NEVER run with DEBUG=True in a production environment.
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+
+# ALLOWED_HOSTS is a list of host/domain names that this Django site can serve.
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# [Security Policy for Production]
+if not DEBUG:
+    # Redirect all non-HTTPS requests to HTTPS
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
+    
+    # Use secure cookies for sessions and CSRF protection
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+    # HTTP Strict Transport Security (HSTS)
+    # Set to 1 year (31536000 seconds)
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Trust the X-Forwarded-Proto header from the proxy (e.g. Nginx, Load Balancer)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    
+    # Browser security headers
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# [Auth User Model]
+# SkillTree AI uses a custom User model for immersive profile and XP tracking.
+AUTH_USER_MODEL = 'users.User'
+
+# [Application Definition]
+INSTALLED_APPS = [
+    # ASGI server for Channels
+    'daphne',
+    'channels',
+    
+    # Django core apps
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    
+    # Third-party extensions
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'corsheaders',
+    
+    # SkillTree AI Custom Apps
+    'auth_app',
+    'skills',
+    'quests',
+    'executor',
+    'ai_evaluation',
+    'ai_detection',
+    'multiplayer',
+    'leaderboard',
+    'users',
+    'mentor',
+]
+
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', # Must be at the top
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'core.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
+
+# [Database]
+# PostgreSQL configuration via DATABASE_URL. Falls back to sqlite for safety if missing.
+DATABASES = {
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL', 'sqlite:///db.sqlite3'),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
+}
+
+# [Redis & Channels]
+# REDIS_URL is used for Channels layers and Celery tasks.
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [REDIS_URL],
+        },
+    },
+}
+
+# [Celery]
+# Async task processing for AI evaluation and skill tree updates.
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# [REST Framework]
+# Global settings for SkillTree AI APIs.
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+}
+
+# [Simple JWT]
+# 60-minute access tokens and 7-day refresh tokens for immersive session management.
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+# [CORS]
+# Allowed origins defined via environment variable (comma-separated).
+CORS_ORIGINS_RAW = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_RAW.split(',') if origin.strip()]
+
+# [Password Validation]
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+# [Internationalization]
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# [Static & Media]
+# Static files (CSS, JavaScript, Images) and User-uploaded media.
+STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# [Default Primary Key]
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

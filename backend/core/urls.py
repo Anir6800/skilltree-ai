@@ -1,0 +1,28 @@
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    
+    # Authentication API
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # Custom App APIs
+    path('api/auth/', include('auth_app.urls', namespace='auth_app')),
+    path('api/users/', include('users.urls', namespace='users')),
+    path('api/skills/', include('skills.urls', namespace='skills')),
+    path('api/quests/', include('quests.urls', namespace='quests')),
+    path('api/leaderboard/', include('leaderboard.urls', namespace='leaderboard')),
+]
+
+# Serve media and static files during development
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_address=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_address=settings.MEDIA_ROOT)
