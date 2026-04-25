@@ -127,7 +127,7 @@ class CompileExecutor:
     def _get_docker_volume_path(self, path: Path) -> str:
         """
         Convert local path to Docker volume mount format.
-        On Windows, converts C:\path to /c/path for Docker.
+        On Windows, converts C:\\path to /c/path for Docker.
         """
         path_str = str(path.resolve())
         

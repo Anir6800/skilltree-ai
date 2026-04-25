@@ -12,7 +12,7 @@ import {
   Target, 
   Swords, 
   Trophy, 
-  User 
+  Bot 
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -37,6 +37,12 @@ const NAV_ITEMS = [
     label: 'Quests',
     icon: Target,
     path: '/quests',
+  },
+  {
+    id: 'mentor',
+    label: 'Mentor',
+    icon: Bot,
+    path: '/mentor',
   },
   {
     id: 'arena',

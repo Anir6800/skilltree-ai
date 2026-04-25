@@ -67,13 +67,10 @@ export async function register(userData) {
  * @returns {Promise<void>}
  */
 export async function logout() {
-  try {
-    await api.post(API_ENDPOINTS.AUTH_LOGOUT);
-  } catch (error) {
-    console.warn('Logout API call failed, clearing tokens anyway');
-  } finally {
-    clearAuthTokens();
-  }
+  // For JWT, logout is client-side only - just clear tokens
+  // No need to call backend since JWT is stateless
+  clearAuthTokens();
+  return Promise.resolve();
 }
 
 /**

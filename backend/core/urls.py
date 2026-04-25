@@ -17,10 +17,13 @@ urlpatterns = [
     # Custom App APIs
     path('api/auth/', include('auth_app.urls', namespace='auth_app')),
     path('api/users/', include('users.urls', namespace='users')),
+    path('api/onboarding/', include('users.onboarding_urls', namespace='onboarding')),
     path('api/skills/', include('skills.urls', namespace='skills')),
+    path('api/curriculum/', include('skills.curriculum_urls', namespace='curriculum')),
     path('api/quests/', include('quests.urls', namespace='quests')),
     path('api/leaderboard/', include('leaderboard.urls', namespace='leaderboard')),
     path('api/execute/', include('executor.urls', namespace='executor')),
+    path('api/mentor/', include('mentor.urls', namespace='mentor')),
 ]
 
 # Serve media and static files during development

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import useAuthStore from './store/authStore';
+import { useOnboardingCheck } from './hooks/useOnboardingCheck';
 
 // Page component imports
 import AuthPage from './pages/AuthPage';
@@ -14,18 +15,22 @@ import MatchPage from './pages/MatchPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import ProfilePage from './pages/ProfilePage';
 import MentorPage from './pages/MentorPage';
+import OnboardingPage from './pages/OnboardingPage';
 import AdminPage from './pages/AdminPage';
 
 /**
  * AuthGuard Component
  * Prevents access to protected routes if the user is not authenticated.
+ * Also checks onboarding status and redirects if needed.
  * @param {Object} props
  * @param {React.ReactNode} props.children
  * @param {boolean} [props.requireAdmin=false]
+ * @param {boolean} [props.skipOnboardingCheck=false]
  */
-const AuthGuard = ({ children, requireAdmin = false }) => {
+const AuthGuard = ({ children, requireAdmin = false, skipOnboardingCheck = false }) => {
   const { isAuthenticated, user } = useAuthStore();
   const location = useLocation();
+  const { isChecking } = useOnboardingCheck();
 
   if (!isAuthenticated) {
     // Redirect to login but save the current location to redirect back after login
@@ -35,6 +40,34 @@ const AuthGuard = ({ children, requireAdmin = false }) => {
   if (requireAdmin && user?.role !== 'admin') {
     // User is not an admin, redirect to safe dashboard
     return <Navigate to="/dashboard" replace />;
+  }
+
+  // Show loading while checking onboarding (prevents flash)
+  if (!skipOnboardingCheck && isChecking) {
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        background: '#0a0c10',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#7c6af5'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ 
+            width: '40px', 
+            height: '40px', 
+            border: '3px solid rgba(124, 106, 245, 0.3)',
+            borderTopColor: '#7c6af5',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px'
+          }} />
+          <p style={{ fontSize: '14px', fontWeight: '500' }}>Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return children;
@@ -98,6 +131,14 @@ const router = createBrowserRouter([
   },
 
   // Protected Main Routes
+  {
+    path: '/onboarding',
+    element: (
+      <AuthGuard skipOnboardingCheck={true}>
+        <OnboardingPage />
+      </AuthGuard>
+    ),
+  },
   {
     path: '/dashboard',
     element: (

@@ -32,6 +32,7 @@ import {
 import { fetchDashboardData } from '../api/dashboardApi';
 import useAuthStore from '../store/authStore';
 import MainLayout from '../components/layout/MainLayout';
+import CurriculumWidget from '../components/dashboard/CurriculumWidget';
 
 const DashboardPage = () => {
   const [data, setData] = useState(null);
@@ -362,6 +363,9 @@ const DashboardPage = () => {
           </div>
         )}
       </motion.section>
+
+      {/* CURRICULUM WIDGET */}
+      <CurriculumWidget />
     </div>
     </MainLayout>
   );

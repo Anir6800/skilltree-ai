@@ -27,7 +27,14 @@ if sys.platform == 'win32':
     )
 
 # Load task modules from all registered Django apps.
-app.autodiscover_tasks()
+# Explicitly list apps with tasks to ensure they're discovered
+app.autodiscover_tasks([
+    'skills',
+    'ai_evaluation',
+    'executor',
+    'quests',
+    'users',
+])
 
 
 @app.task(bind=True, ignore_result=True)
