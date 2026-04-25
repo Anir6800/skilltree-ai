@@ -1,262 +1,372 @@
 /**
  * SkillTree AI - Skill Tree Page
- * Interactive skill tree visualization
+ * Interactive skill tree visualization with React Flow
  * @module pages/SkillTreePage
  */
 
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import useSkillTree from '../hooks/useSkillTree';
-import { SKILL_STATUS, SKILL_NODE_TYPES } from '../constants';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import ReactFlow, {
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import dagre from 'dagre';
+import { Sparkles, Filter, Loader2, AlertCircle } from 'lucide-react';
+import axios from 'axios';
+import { API_BASE_URL, SKILL_STATUS } from '../constants';
+import { cn } from '../utils/cn';
+import SkillNode from '../components/skill-tree/SkillNode';
+import SkillDetailPanel from '../components/skill-tree/SkillDetailPanel';
+import MainLayout from '../components/layout/MainLayout';
 
 /**
- * Skill tree page component
- * @returns {JSX.Element} Skill tree page
+ * Category filter options
+ */
+const CATEGORIES = [
+  { id: 'all', label: 'All', color: 'primary' },
+  { id: 'algorithms', label: 'Algorithms', color: 'purple' },
+  { id: 'data-structures', label: 'Data Structures', color: 'cyan' },
+  { id: 'systems', label: 'Systems', color: 'amber' },
+  { id: 'web-dev', label: 'Web Dev', color: 'pink' },
+  { id: 'ai-ml', label: 'AI/ML', color: 'emerald' },
+];
+
+/**
+ * Custom node types for React Flow
+ */
+const nodeTypes = {
+  skillNode: SkillNode,
+};
+
+/**
+ * Apply dagre layout to nodes
+ */
+const getLayoutedElements = (nodes, edges, direction = 'LR') => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+  dagreGraph.setGraph({ rankdir: direction, nodesep: 120, ranksep: 60 });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: 180, height: 100 });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - 90,
+        y: nodeWithPosition.y - 50,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
+};
+
+/**
+ * Skill Tree Page Component
  */
 function SkillTreePage() {
-  const {
-    skills,
-    selectedSkill,
-    isLoading,
-    error,
-    fetchSkillTree,
-    selectSkill,
-    clearSelectedSkill,
-    treeVisualization,
-    progressStats,
-    setFilters,
-    filters,
-  } = useSkillTree({ autoFetch: true });
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [selectedSkill, setSelectedSkill] = useState(null);
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rawSkills, setRawSkills] = useState([]);
 
-  const [viewMode, setViewMode] = useState('tree');
+  /**
+   * Fetch skill tree data from API
+   */
+  const fetchSkillTree = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('skilltree_access_token');
+      const response = await axios.get(`${API_BASE_URL}/api/skills/tree/`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      const data = response.data;
+
+      if (!data || !data.nodes || !Array.isArray(data.nodes)) {
+        throw new Error('Invalid API response structure');
+      }
+
+      setRawSkills(data.nodes);
+
+      // Transform API data to React Flow format
+      const flowNodes = data.nodes.map((skill) => ({
+        id: String(skill.id),
+        type: 'skillNode',
+        data: {
+          ...skill,
+          onClick: (skillData) => setSelectedSkill(skillData),
+        },
+        position: { x: 0, y: 0 },
+      }));
+
+      const flowEdges = (data.edges || []).map((edge, index) => ({
+        id: `edge-${edge.source}-${edge.target}-${index}`,
+        source: String(edge.source),
+        target: String(edge.target),
+        type: 'smoothstep',
+        animated: false,
+        style: {
+          stroke: 'rgba(99, 102, 241, 0.3)',
+          strokeWidth: 2,
+        },
+      }));
+
+      // Apply dagre layout
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        flowNodes,
+        flowEdges
+      );
+
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
+    } catch (err) {
+      console.error('Failed to fetch skill tree:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to load skill tree');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setNodes, setEdges]);
 
   useEffect(() => {
     fetchSkillTree();
   }, [fetchSkillTree]);
 
   /**
-   * Get status color class
-   * @param {string} status - Skill status
-   * @returns {string} CSS class
+   * Filter nodes by category
    */
-  const getStatusClass = (status) => {
-    const classes = {
-      [SKILL_STATUS.LOCKED]: 'skill-locked',
-      [SKILL_STATUS.AVAILABLE]: 'skill-available',
-      [SKILL_STATUS.IN_PROGRESS]: 'skill-in-progress',
-      [SKILL_STATUS.COMPLETED]: 'skill-completed',
-    };
-    return classes[status] || '';
-  };
+  const filteredNodes = useMemo(() => {
+    if (activeCategory === 'all') return nodes;
+    return nodes.filter((node) => node.data.category === activeCategory);
+  }, [nodes, activeCategory]);
 
   /**
-   * Get node type class
-   * @param {string} type - Node type
-   * @returns {string} CSS class
+   * Filter edges to only show connections between visible nodes
    */
-  const getTypeClass = (type) => {
-    const classes = {
-      [SKILL_NODE_TYPES.CORE]: 'node-core',
-      [SKILL_NODE_TYPES.ADVANCED]: 'node-advanced',
-      [SKILL_NODE_TYPES.ELITE]: 'node-elite',
-      [SKILL_NODE_TYPES.LEGENDARY]: 'node-legendary',
-    };
-    return classes[type] || '';
-  };
+  const filteredEdges = useMemo(() => {
+    const visibleNodeIds = new Set(filteredNodes.map((n) => n.id));
+    return edges.filter(
+      (edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
+    );
+  }, [edges, filteredNodes]);
 
-  if (isLoading && !skills.length) {
+  /**
+   * Handle category filter change
+   */
+  const handleCategoryChange = useCallback((categoryId) => {
+    setActiveCategory(categoryId);
+  }, []);
+
+  /**
+   * Handle start skill action
+   */
+  const handleStartSkill = useCallback(async (skillId) => {
+    try {
+      const token = localStorage.getItem('skilltree_access_token');
+      await axios.post(
+        `${API_BASE_URL}/api/skills/${skillId}/start/`,
+        {},
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+
+      // Refresh skill tree
+      await fetchSkillTree();
+      setSelectedSkill(null);
+    } catch (err) {
+      console.error('Failed to start skill:', err);
+      alert(err.response?.data?.message || 'Failed to start skill');
+    }
+  }, [fetchSkillTree]);
+
+  /**
+   * Loading skeleton
+   */
+  if (isLoading) {
     return (
-      <div className="skill-tree-page loading">
-        <div className="loading-spinner">Loading skill tree...</div>
+      <div className="relative w-full min-h-screen bg-background overflow-hidden flex items-center justify-center">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0c10] via-[#0f0a1a] to-[#0a0c10]" />
+        
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="relative z-10 glass-panel p-12 rounded-3xl text-center"
+        >
+          <Loader2 size={48} className="text-primary animate-spin mx-auto mb-4" />
+          <h2 className="text-2xl font-black text-white mb-2">Loading Skill Tree</h2>
+          <p className="text-slate-400 text-sm">Initializing neural pathways...</p>
+        </motion.div>
+
+        {/* Vignette */}
+        <div className="fixed inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.9)] z-0" />
+      </div>
+    );
+  }
+
+  /**
+   * Error state
+   */
+  if (error) {
+    return (
+      <div className="relative w-full min-h-screen bg-background overflow-hidden flex items-center justify-center p-6">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0c10] via-[#0f0a1a] to-[#0a0c10]" />
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative z-10 glass-panel p-12 rounded-3xl text-center max-w-md"
+        >
+          <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle size={32} className="text-accent" />
+          </div>
+          <h2 className="text-2xl font-black text-white mb-2">Connection Failed</h2>
+          <p className="text-slate-400 text-sm mb-6">{error}</p>
+          <button
+            onClick={fetchSkillTree}
+            className="auth-btn-primary"
+          >
+            Retry Connection
+          </button>
+        </motion.div>
+
+        {/* Vignette */}
+        <div className="fixed inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.9)] z-0" />
       </div>
     );
   }
 
   return (
-    <div className="skill-tree-page">
-      <div className="skill-tree-header">
-        <div className="header-content">
-          <h1>Skill Tree</h1>
-          <p className="header-subtitle">
-            {progressStats.completed} / {progressStats.total} skills completed
-          </p>
-        </div>
-        
-        <div className="view-controls">
-          <button
-            className={`view-btn ${viewMode === 'tree' ? 'active' : ''}`}
-            onClick={() => setViewMode('tree')}
-          >
-            Tree View
-          </button>
-          <button
-            className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-            onClick={() => setViewMode('list')}
-          >
-            List View
-          </button>
-        </div>
-      </div>
+    <MainLayout>
+      <div className="relative w-full h-screen bg-background overflow-hidden">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0c10] via-[#0f0a1a] to-[#0a0c10]" />
 
-      {/* Progress Overview */}
-      <div className="skill-progress-overview glass-panel">
-        <div className="progress-stat">
-          <span className="stat-number">{progressStats.completed}</span>
-          <span className="stat-text">Completed</span>
-        </div>
-        <div className="progress-stat">
-          <span className="stat-number">{progressStats.inProgress}</span>
-          <span className="stat-text">In Progress</span>
-        </div>
-        <div className="progress-stat">
-          <span className="stat-number">{progressStats.available}</span>
-          <span className="stat-text">Available</span>
-        </div>
-        <div className="progress-stat">
-          <span className="stat-number">{progressStats.locked}</span>
-          <span className="stat-text">Locked</span>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="skill-filters">
-        <select
-          value={filters.status || ''}
-          onChange={(e) => setFilters({ status: e.target.value || null })}
-          className="filter-select"
-        >
-          <option value="">All Status</option>
-          <option value={SKILL_STATUS.AVAILABLE}>Available</option>
-          <option value={SKILL_STATUS.IN_PROGRESS}>In Progress</option>
-          <option value={SKILL_STATUS.COMPLETED}>Completed</option>
-          <option value={SKILL_STATUS.LOCKED}>Locked</option>
-        </select>
-
-        <select
-          value={filters.type || ''}
-          onChange={(e) => setFilters({ type: e.target.value || null })}
-          className="filter-select"
-        >
-          <option value="">All Types</option>
-          <option value={SKILL_NODE_TYPES.CORE}>Core</option>
-          <option value={SKILL_NODE_TYPES.ADVANCED}>Advanced</option>
-          <option value={SKILL_NODE_TYPES.ELITE}>Elite</option>
-          <option value={SKILL_NODE_TYPES.LEGENDARY}>Legendary</option>
-        </select>
-      </div>
-
-      {/* Skill Tree Visualization */}
-      {viewMode === 'tree' ? (
-        <div className="skill-tree-visualization glass-panel">
-          <div className="tree-container">
-            {skills.map((skill) => (
-              <div
-                key={skill.id}
-                className={`skill-node ${getStatusClass(skill.status)} ${getTypeClass(skill.type)}`}
-                onClick={() => selectSkill(skill)}
-                style={{
-                  left: skill.x || 0,
-                  top: skill.y || 0,
-                }}
-              >
-                <div className="node-icon">{skill.icon || '📚'}</div>
-                <div className="node-label">{skill.name}</div>
-                {skill.status === SKILL_STATUS.COMPLETED && (
-                  <div className="node-check">✓</div>
-                )}
+      {/* Header */}
+      <motion.div
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+        className="absolute top-0 left-0 right-0 z-20 p-6"
+      >
+        <div className="glass-panel px-8 py-4 rounded-2xl border-white/5 shadow-2xl backdrop-blur-3xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20">
+                <Sparkles size={24} className="text-white" fill="currentColor" />
               </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="skill-list">
-          {skills.map((skill) => (
-            <Link
-              key={skill.id}
-              to={`/skills/${skill.id}`}
-              className={`glass-panel skill-list-item ${getStatusClass(skill.status)}`}
-            >
-              <div className="skill-icon">{skill.icon || '📚'}</div>
-              <div className="skill-info">
-                <h3>{skill.name}</h3>
-                <p>{skill.description}</p>
-                <div className="skill-meta">
-                  <span className={`type-badge ${getTypeClass(skill.type)}`}>
-                    {skill.type}
-                  </span>
-                  <span className={`status-badge ${getStatusClass(skill.status)}`}>
-                    {skill.status}
-                  </span>
-                </div>
-              </div>
-              <div className="skill-xp">
-                {skill.xpReward > 0 && <span>+{skill.xpReward} XP</span>}
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {/* Selected Skill Modal */}
-      {selectedSkill && (
-        <div className="skill-modal-overlay" onClick={clearSelectedSkill}>
-          <div className="skill-modal glass-panel" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={clearSelectedSkill}>×</button>
-            <div className="modal-header">
-              <div className="modal-icon">{selectedSkill.icon || '📚'}</div>
-              <h2>{selectedSkill.name}</h2>
-              <span className={`type-badge ${getTypeClass(selectedSkill.type)}`}>
-                {selectedSkill.type}
-              </span>
-            </div>
-            <p className="modal-description">{selectedSkill.description}</p>
-            <div className="modal-stats">
-              <div className="modal-stat">
-                <span className="label">XP Cost</span>
-                <span className="value">{selectedSkill.xpCost || 0}</span>
-              </div>
-              <div className="modal-stat">
-                <span className="label">XP Reward</span>
-                <span className="value">+{selectedSkill.xpReward || 0}</span>
-              </div>
-              <div className="modal-stat">
-                <span className="label">Status</span>
-                <span className={`value status-badge ${getStatusClass(selectedSkill.status)}`}>
-                  {selectedSkill.status}
-                </span>
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-white">
+                  Skill Tree
+                </h1>
+                <p className="text-xs text-slate-400 uppercase tracking-wider">
+                  Neural Pathway Visualization
+                </p>
               </div>
             </div>
-            {selectedSkill.prerequisites?.length > 0 && (
-              <div className="modal-prerequisites">
-                <h4>Prerequisites</h4>
-                <ul>
-                  {selectedSkill.prerequisites.map((prereq) => (
-                    <li key={prereq}>{prereq}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div className="modal-actions">
-              {selectedSkill.status === SKILL_STATUS.AVAILABLE && (
-                <button className="primary-cta">Start Learning</button>
-              )}
-              {selectedSkill.status === SKILL_STATUS.IN_PROGRESS && (
-                <button className="primary-cta">Continue</button>
-              )}
-              <Link to={`/skills/${selectedSkill.id}`} className="secondary-cta">
-                View Details
-              </Link>
+
+            {/* Filter Toolbar */}
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="text-slate-500" />
+              {CATEGORIES.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => handleCategoryChange(category.id)}
+                  className={cn(
+                    'px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 backdrop-blur-md border',
+                    activeCategory === category.id
+                      ? 'bg-primary/20 border-primary/50 text-primary shadow-[0_0_15px_rgba(99,102,241,0.3)]'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
+                  )}
+                >
+                  {category.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </motion.div>
 
-      {error && (
-        <div className="error-message">
-          {error}
-        </div>
-      )}
+      {/* React Flow Canvas */}
+      <div className="absolute inset-0 z-10">
+        <ReactFlow
+          nodes={filteredNodes}
+          edges={filteredEdges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          fitView
+          minZoom={0.1}
+          maxZoom={1.5}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background
+            color="rgba(99, 102, 241, 0.1)"
+            gap={20}
+            size={1}
+            style={{ backgroundColor: 'transparent' }}
+          />
+          
+          <Controls
+            className="!bg-black/40 !backdrop-blur-xl !border !border-white/10 !rounded-xl !shadow-2xl"
+            style={{
+              button: {
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                color: 'rgba(255, 255, 255, 0.6)',
+              },
+            }}
+          />
+          
+          <MiniMap
+            className="!bg-black/40 !backdrop-blur-xl !border !border-white/10 !rounded-xl !shadow-2xl"
+            nodeColor={(node) => {
+              if (node.data.status === SKILL_STATUS.COMPLETED) return '#10b981';
+              if (node.data.status === SKILL_STATUS.AVAILABLE) return '#6366f1';
+              if (node.data.status === SKILL_STATUS.IN_PROGRESS) return '#06b6d4';
+              return '#64748b';
+            }}
+            maskColor="rgba(0, 0, 0, 0.6)"
+          />
+        </ReactFlow>
+      </div>
+
+      {/* Skill Detail Panel */}
+      <AnimatePresence>
+        {selectedSkill && (
+          <SkillDetailPanel
+            skill={selectedSkill}
+            onClose={() => setSelectedSkill(null)}
+            onStartSkill={handleStartSkill}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Vignette */}
+      <div className="fixed inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.9)] z-0" />
     </div>
+    </MainLayout>
   );
 }
 

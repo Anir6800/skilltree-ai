@@ -125,14 +125,24 @@ DATABASES = {
 # REDIS_URL is used for Channels layers and Celery tasks.
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [REDIS_URL],
+# Use Redis channel layer if available, fall back to in-memory for local dev
+_USE_REDIS_CHANNELS = os.getenv('USE_REDIS_CHANNELS', 'True').lower() == 'true'
+
+if _USE_REDIS_CHANNELS:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [REDIS_URL],
+            },
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 # [Celery]
 # Async task processing for AI evaluation and skill tree updates.

@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/skills/', include('skills.urls', namespace='skills')),
     path('api/quests/', include('quests.urls', namespace='quests')),
     path('api/leaderboard/', include('leaderboard.urls', namespace='leaderboard')),
+    path('api/execute/', include('executor.urls', namespace='executor')),
 ]
 
 # Serve media and static files during development

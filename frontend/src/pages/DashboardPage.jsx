@@ -31,6 +31,7 @@ import {
 } from 'recharts';
 import { fetchDashboardData } from '../api/dashboardApi';
 import useAuthStore from '../store/authStore';
+import MainLayout from '../components/layout/MainLayout';
 
 const DashboardPage = () => {
   const [data, setData] = useState(null);
@@ -64,6 +65,7 @@ const DashboardPage = () => {
   const xpPercentage = Math.min(Math.max((progressInLevel / 1000) * 100, 5), 100);
 
   return (
+    <MainLayout>
     <div className="min-h-screen bg-[#0a0c10] text-white p-4 md:p-8 space-y-8 max-w-7xl mx-auto">
       {/* BACKGROUND EFFECTS */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
@@ -361,6 +363,7 @@ const DashboardPage = () => {
         )}
       </motion.section>
     </div>
+    </MainLayout>
   );
 };
 

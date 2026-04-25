@@ -15,21 +15,19 @@ class SkillTreeView(APIView):
     def get(self, request):
         skills = Skill.objects.all().prefetch_related('prerequisites')
         
-        # Grid layout settings
-        CATEGORIES = ['algorithms', 'ds', 'systems', 'webdev', 'aiml']
-        X_SPACING = 300
-        Y_SPACING = 150
+        # Category mapping for frontend
+        CATEGORY_MAP = {
+            'algorithms': 'algorithms',
+            'ds': 'data-structures',
+            'systems': 'systems',
+            'webdev': 'web-dev',
+            'aiml': 'ai-ml',
+        }
         
         nodes = []
         edges = []
-        category_counts = {cat: 0 for cat in CATEGORIES}
 
         for skill in skills:
-            # Determine position
-            col = CATEGORIES.index(skill.category) if skill.category in CATEGORIES else 0
-            row = category_counts[skill.category]
-            category_counts[skill.category] += 1
-            
             # Get status for this user
             try:
                 progress = SkillProgress.objects.get(user=request.user, skill=skill)
@@ -42,26 +40,41 @@ class SkillTreeView(APIView):
                 ).exists()
                 status_val = 'available' if not unmet_prereqs and request.user.xp >= skill.xp_required_to_unlock else 'locked'
 
+            # Get prerequisites with completion status
+            prereq_list = []
+            for prereq in skill.prerequisites.all():
+                try:
+                    prereq_progress = SkillProgress.objects.get(user=request.user, skill=prereq)
+                    prereq_completed = prereq_progress.status == 'completed'
+                except SkillProgress.DoesNotExist:
+                    prereq_completed = False
+                
+                prereq_list.append({
+                    "id": prereq.id,
+                    "name": prereq.title,
+                    "completed": prereq_completed
+                })
+
+            # Count linked quests
+            quest_count = skill.quests.count() if hasattr(skill, 'quests') else 0
+
             nodes.append({
-                "id": str(skill.id),
-                "type": "skillNode",
-                "data": {
-                    "title": skill.title,
-                    "category": skill.category,
-                    "difficulty": skill.difficulty,
-                    "status": status_val,
-                    "xp_required": skill.xp_required_to_unlock
-                },
-                "position": {"x": col * X_SPACING, "y": row * Y_SPACING}
+                "id": skill.id,
+                "name": skill.title,
+                "description": skill.description,
+                "category": CATEGORY_MAP.get(skill.category, skill.category),
+                "difficulty": skill.difficulty,
+                "status": status_val,
+                "xpRequired": skill.xp_required_to_unlock,
+                "prerequisites": prereq_list,
+                "questCount": quest_count,
             })
 
             # Create edges from prerequisites
             for prereq in skill.prerequisites.all():
                 edges.append({
-                    "id": f"e{prereq.id}-{skill.id}",
-                    "source": str(prereq.id),
-                    "target": str(skill.id),
-                    "animated": status_val != 'locked'
+                    "source": prereq.id,
+                    "target": skill.id,
                 })
 
         return Response({"nodes": nodes, "edges": edges})

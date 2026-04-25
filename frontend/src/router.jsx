@@ -123,6 +123,14 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: '/quests',
+    element: (
+      <AuthGuard>
+        <QuestPage />
+      </AuthGuard>
+    ),
+  },
+  {
     path: '/quests/:questId',
     element: (
       <AuthGuard>
