@@ -12,7 +12,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'xp', 'level', 
-            'streak_days', 'last_active', 'role', 'avatar_url', 'rank'
+            'streak_days', 'last_active', 'role', 'avatar_url', 'rank',
+            'is_staff', 'is_superuser'
         ]
 
 class XPLogSerializer(serializers.ModelSerializer):

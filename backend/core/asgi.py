@@ -16,6 +16,7 @@ from django.urls import path
 # These imports must happen after get_asgi_application()
 from multiplayer.consumers import MatchConsumer
 from executor.consumers import ExecutionStatusConsumer
+from admin_panel.consumers import AssessmentResultConsumer
 
 application = ProtocolTypeRouter({
     # Standard HTTP requests handled by Django
@@ -29,6 +30,9 @@ application = ProtocolTypeRouter({
             
             # Code Execution Status Routing: ws/execution/<task_id>/
             path("ws/execution/<str:task_id>/", ExecutionStatusConsumer.as_asgi()),
+            
+            # Assessment Result Routing: ws/assessments/<submission_id>/
+            path("ws/assessments/<int:submission_id>/", AssessmentResultConsumer.as_asgi()),
         ])
     ),
 })

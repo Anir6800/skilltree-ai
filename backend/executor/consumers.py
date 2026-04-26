@@ -1,5 +1,6 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
 
 class ExecutionStatusConsumer(AsyncWebsocketConsumer):
     """
@@ -7,6 +8,13 @@ class ExecutionStatusConsumer(AsyncWebsocketConsumer):
     Provides real-time feedback on AI-generated code runs.
     """
     async def connect(self):
+        # SECURITY: Check authentication
+        user = self.scope.get('user')
+        if not user or not user.is_authenticated:
+            await self.close(code=4001)  # Unauthorized
+            return
+        
+        self.user = user
         self.task_id = self.scope['url_route']['kwargs']['task_id']
         self.group_name = f'execution_{self.task_id}'
 

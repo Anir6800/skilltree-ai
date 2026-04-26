@@ -74,18 +74,22 @@ def submit_onboarding(request):
         # Trigger async AI path generation (Celery task)
         try:
             from skills.tasks import generate_personalized_path
-            generate_personalized_path.delay(user.id, profile.id)
+            task = generate_personalized_path.delay(user.id, profile.id)
+            
+            return Response({
+                'status': 'processing',
+                'message': 'Your personalized path is being generated...',
+                'profile_id': profile.id
+            }, status=status.HTTP_201_CREATED)
+            
         except Exception as e:
-            # If Celery not available, mark as generated immediately
-            print(f"Celery task failed: {e}")
-            profile.path_generated = True
-            profile.save()
-        
-        return Response({
-            'status': 'processing',
-            'message': 'Your personalized path is being generated...',
-            'profile_id': profile.id
-        }, status=status.HTTP_201_CREATED)
+            # SECURITY: If Celery fails, return error instead of silently marking as complete
+            profile.delete()  # Clean up the profile
+            return Response({
+                'error': 'Path generation service unavailable',
+                'message': 'Unable to generate personalized path. Please try again later.',
+                'detail': str(e)
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         
     except Exception as e:
         return Response({

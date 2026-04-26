@@ -6,15 +6,19 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from functools import wraps
 
-from skills.models import Skill
+from skills.models import Skill, SkillProgress
 from quests.models import Quest
-from .models import AdminContent, AssessmentQuestion
+from .models import AdminContent, AssessmentQuestion, AssessmentSubmission
 from .serializers import (
     AdminSkillSerializer,
     AdminQuestSerializer,
     AdminContentSerializer,
-    AssessmentQuestionSerializer
+    AssessmentQuestionSerializer,
+    AssessmentQuestionCreateSerializer,
+    AssessmentSubmissionSerializer,
+    AssessmentSubmissionCreateSerializer
 )
+from .tasks import evaluate_assessment_submission
 from core.lm_client import lm_client
 
 
@@ -227,3 +231,119 @@ def admin_stats(request):
         'content_by_type': content_by_type,
         'recent_content': recent_content_data
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_assessment(request, question_id):
+    """
+    Submit an answer to an assessment question.
+    Triggers async evaluation via Celery.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    question = get_object_or_404(AssessmentQuestion, id=question_id)
+    
+    # SECURITY: Verify user has access to the quest
+    quest = question.quest
+    skill = quest.skill
+    
+    # Check if skill is unlocked
+    try:
+        skill_progress = SkillProgress.objects.get(user=request.user, skill=skill)
+        if skill_progress.status == 'locked':
+            return Response({
+                'error': 'This assessment is locked. Unlock the skill first.',
+                'skill_required': skill.title
+            }, status=status.HTTP_403_FORBIDDEN)
+    except SkillProgress.DoesNotExist:
+        return Response({
+            'error': 'Skill not started. Start the skill first.',
+            'skill_required': skill.title
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # SECURITY: Check if user already passed
+    existing_passed = AssessmentSubmission.objects.filter(
+        user=request.user,
+        question=question,
+        passed=True
+    ).exists()
+    
+    if existing_passed:
+        return Response({
+            'error': 'You have already passed this assessment.',
+            'message': 'You cannot resubmit a passed assessment.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # SECURITY: Rate limiting (max 5 submissions per hour per question)
+    one_hour_ago = timezone.now() - timedelta(hours=1)
+    recent_submissions = AssessmentSubmission.objects.filter(
+        user=request.user,
+        question=question,
+        submitted_at__gte=one_hour_ago
+    ).count()
+    
+    if recent_submissions >= 5:
+        return Response({
+            'error': 'Rate limit exceeded.',
+            'message': 'You can only submit 5 times per hour. Please wait before trying again.',
+            'retry_after': 3600  # seconds
+        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+    
+    # Validate input
+    serializer = AssessmentSubmissionCreateSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create submission
+    submission = AssessmentSubmission.objects.create(
+        user=request.user,
+        question=question,
+        answer=serializer.validated_data['answer'],
+        status='pending'
+    )
+    
+    # Trigger async evaluation
+    evaluate_assessment_submission.delay(submission.id)
+    
+    return Response({
+        'submission_id': submission.id,
+        'status': 'evaluating',
+        'message': 'Your submission is being evaluated. You will receive results shortly.'
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_submission_result(request, submission_id):
+    """
+    Poll for assessment submission result.
+    """
+    submission = get_object_or_404(
+        AssessmentSubmission,
+        id=submission_id,
+        user=request.user
+    )
+    
+    serializer = AssessmentSubmissionSerializer(submission)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_user_submissions(request):
+    """
+    List all submissions for the authenticated user.
+    """
+    question_id = request.query_params.get('question', None)
+    
+    submissions = AssessmentSubmission.objects.filter(user=request.user)
+    
+    if question_id:
+        submissions = submissions.filter(question_id=question_id)
+    
+    submissions = submissions.select_related('question', 'question__quest').order_by('-submitted_at')
+    
+    serializer = AssessmentSubmissionSerializer(submissions, many=True)
+    return Response(serializer.data)

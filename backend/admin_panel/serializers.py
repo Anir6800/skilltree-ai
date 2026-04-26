@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from skills.models import Skill, SkillPrerequisite
 from quests.models import Quest
-from .models import AdminContent, AssessmentQuestion
+from .models import AdminContent, AssessmentQuestion, AssessmentSubmission
 
 
 class SkillPrerequisiteSerializer(serializers.ModelSerializer):
@@ -102,6 +102,80 @@ class AssessmentQuestionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'quest', 'quest_title', 'question_type', 'prompt',
             'correct_answer', 'mcq_options', 'test_cases',
-            'validation_criteria', 'points', 'created_at', 'updated_at'
+            'validation_criteria', 'language', 'points', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+
+class AssessmentQuestionCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating assessment questions with validation."""
+    
+    class Meta:
+        model = AssessmentQuestion
+        fields = [
+            'quest', 'question_type', 'prompt', 'correct_answer',
+            'mcq_options', 'test_cases', 'validation_criteria', 'language', 'points'
+        ]
+    
+    def validate(self, data):
+        question_type = data.get('question_type')
+        
+        if question_type == 'mcq':
+            if not data.get('mcq_options'):
+                raise serializers.ValidationError({
+                    'mcq_options': 'MCQ questions must have options defined.'
+                })
+            if not data.get('correct_answer'):
+                raise serializers.ValidationError({
+                    'correct_answer': 'MCQ questions must have a correct answer.'
+                })
+        
+        elif question_type == 'code':
+            if not data.get('test_cases'):
+                raise serializers.ValidationError({
+                    'test_cases': 'Code challenges must have test cases defined.'
+                })
+            if not data.get('language'):
+                raise serializers.ValidationError({
+                    'language': 'Code challenges must specify a programming language.'
+                })
+        
+        elif question_type == 'open_ended':
+            if not data.get('validation_criteria'):
+                raise serializers.ValidationError({
+                    'validation_criteria': 'Open-ended questions must have validation criteria.'
+                })
+        
+        return data
+
+
+class AssessmentSubmissionSerializer(serializers.ModelSerializer):
+    """Serializer for assessment submissions."""
+    question_prompt = serializers.CharField(source='question.prompt', read_only=True)
+    question_type = serializers.CharField(source='question.question_type', read_only=True)
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    
+    class Meta:
+        model = AssessmentSubmission
+        fields = [
+            'id', 'user', 'user_username', 'question', 'question_prompt',
+            'question_type', 'answer', 'submitted_at', 'evaluated_at',
+            'status', 'result', 'score', 'passed'
+        ]
+        read_only_fields = [
+            'user', 'submitted_at', 'evaluated_at', 'status',
+            'result', 'score', 'passed'
+        ]
+
+
+class AssessmentSubmissionCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating assessment submissions."""
+    
+    class Meta:
+        model = AssessmentSubmission
+        fields = ['question', 'answer']
+    
+    def validate_answer(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError('Answer cannot be empty.')
+        return value

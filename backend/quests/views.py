@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q, Prefetch, Case, When, Value, CharField
 from .models import Quest, QuestSubmission
 from .serializers import QuestListSerializer, QuestDetailSerializer, QuestSubmissionSerializer
-from skills.models import Skill
+from skills.models import Skill, SkillProgress
 
 
 class QuestListView(generics.ListAPIView):
@@ -107,6 +107,37 @@ class QuestSubmitView(APIView):
     def post(self, request, pk):
         # Validate quest exists
         quest = get_object_or_404(Quest, pk=pk)
+        user = request.user
+        
+        # SECURITY: Check if skill is unlocked
+        skill = quest.skill
+        try:
+            skill_progress = SkillProgress.objects.get(user=user, skill=skill)
+            if skill_progress.status == 'locked':
+                return Response({
+                    "error": "Quest is locked",
+                    "message": f"You must unlock the '{skill.title}' skill first.",
+                    "skill_required": skill.title
+                }, status=status.HTTP_403_FORBIDDEN)
+        except SkillProgress.DoesNotExist:
+            return Response({
+                "error": "Skill not started",
+                "message": f"You must start the '{skill.title}' skill first.",
+                "skill_required": skill.title
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # SECURITY: Check if user already passed this quest
+        existing_passed = QuestSubmission.objects.filter(
+            user=user,
+            quest=quest,
+            status='passed'
+        ).exists()
+        
+        if existing_passed:
+            return Response({
+                "error": "Quest already completed",
+                "message": "You have already completed this quest. XP has been awarded."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate input data
         code = request.data.get('code', '').strip()
@@ -127,10 +158,19 @@ class QuestSubmitView(APIView):
             return Response({
                 "error": f"Invalid language. Must be one of: {', '.join(valid_languages)}"
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # SECURITY: Validate code length (max 50KB)
+        MAX_CODE_LENGTH = 50000
+        if len(code) > MAX_CODE_LENGTH:
+            return Response({
+                "error": "Code too long",
+                "message": f"Maximum code length is {MAX_CODE_LENGTH} characters.",
+                "max_length": MAX_CODE_LENGTH
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         # Create submission
         submission = QuestSubmission.objects.create(
-            user=request.user,
+            user=user,
             quest=quest,
             code=code,
             language=language,
