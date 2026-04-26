@@ -12,51 +12,11 @@ import {
   Target, 
   Swords, 
   Trophy, 
-  Bot 
+  Bot,
+  User
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
-
-/**
- * Navigation items configuration
- */
-const NAV_ITEMS = [
-  {
-    id: 'dashboard',
-    label: 'Home',
-    icon: Home,
-    path: '/dashboard',
-  },
-  {
-    id: 'skills',
-    label: 'Skills',
-    icon: Network,
-    path: '/skills',
-  },
-  {
-    id: 'quests',
-    label: 'Quests',
-    icon: Target,
-    path: '/quests',
-  },
-  {
-    id: 'mentor',
-    label: 'Mentor',
-    icon: Bot,
-    path: '/mentor',
-  },
-  {
-    id: 'arena',
-    label: 'Arena',
-    icon: Swords,
-    path: '/arena',
-  },
-  {
-    id: 'leaderboard',
-    label: 'Ranks',
-    icon: Trophy,
-    path: '/leaderboard',
-  },
-];
+import useAuthStore from '../../store/authStore';
 
 /**
  * Nav Item Component
@@ -130,10 +90,57 @@ const NavItem = ({ item, isActive, onClick }) => {
 const BottomNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuthStore();
 
   const handleNavigation = (path) => {
     navigate(path);
   };
+
+  // Dynamic nav items with user profile
+  const navItems = [
+    {
+      id: 'dashboard',
+      label: 'Home',
+      icon: Home,
+      path: '/dashboard',
+    },
+    {
+      id: 'skills',
+      label: 'Skills',
+      icon: Network,
+      path: '/skills',
+    },
+    {
+      id: 'quests',
+      label: 'Quests',
+      icon: Target,
+      path: '/quests',
+    },
+    {
+      id: 'mentor',
+      label: 'Mentor',
+      icon: Bot,
+      path: '/mentor',
+    },
+    {
+      id: 'profile',
+      label: 'Profile',
+      icon: User,
+      path: `/profile/${user?.id || ''}`,
+    },
+    {
+      id: 'arena',
+      label: 'Arena',
+      icon: Swords,
+      path: '/arena',
+    },
+    {
+      id: 'leaderboard',
+      label: 'Ranks',
+      icon: Trophy,
+      path: '/leaderboard',
+    },
+  ];
 
   return (
     <motion.nav
@@ -150,7 +157,7 @@ const BottomNav = () => {
 
         {/* Nav items */}
         <div className="relative flex items-center gap-2">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive = location.pathname === item.path || 
                            (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
 

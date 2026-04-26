@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/leaderboard/', include('leaderboard.urls', namespace='leaderboard')),
     path('api/execute/', include('executor.urls', namespace='executor')),
     path('api/mentor/', include('mentor.urls', namespace='mentor')),
+    path('api/admin/', include('admin_panel.urls', namespace='admin_panel')),
 ]
 
 # Serve media and static files during development

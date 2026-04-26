@@ -1,299 +1,121 @@
-/**
- * SkillTree AI - Admin Page
- * Admin dashboard for managing users, content, and system
- * @module pages/AdminPage
- */
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import useAuthStore from '../store/authStore';
+import { API_BASE_URL } from '../constants';
+import SkillsTab from '../components/admin/SkillsTab';
+import QuestsTab from '../components/admin/QuestsTab';
+import ContentTab from '../components/admin/ContentTab';
+import AssessmentsTab from '../components/admin/AssessmentsTab';
+import StatsTab from '../components/admin/StatsTab';
 
-import { useEffect, useState } from 'react';
-import * as authApi from '../api/authApi';
-import * as skillApi from '../api/skillApi';
-import * as questApi from '../api/questApi';
+const AdminPage = () => {
+  const { user, token } = useAuthStore();
+  const [activeTab, setActiveTab] = useState('stats');
+  const [loading, setLoading] = useState(false);
 
-/**
- * Admin page component
- * @returns {JSX.Element} Admin page
- */
-function AdminPage() {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [stats, setStats] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [skills, setSkills] = useState([]);
-  const [quests, setQuests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  if (!user?.is_staff) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0a0c10 0%, #1a1d29 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: '24px', marginBottom: '16px' }}>Access Denied</h1>
+          <p style={{ color: '#9ca3af' }}>Admin privileges required</p>
+        </div>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  /**
-   * Fetch admin data
-   */
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      // Fetch basic stats
-      const [usersData, skillsData, questsData] = await Promise.all([
-        authApi.getCurrentUser().catch(() => null),
-        skillApi.getSkills({ pageSize: 100 }).catch(() => ({ results: [] })),
-        questApi.getQuests({ pageSize: 100 }).catch(() => ({ results: [] })),
-      ]);
-      
-      setSkills(skillsData.results || []);
-      setQuests(questsData.results || []);
-      
-      // Mock stats for demo
-      setStats({
-        totalUsers: 1250,
-        activeUsers: 342,
-        totalSkills: skillsData.results?.length || 0,
-        totalQuests: questsData.results?.length || 0,
-        totalXP: 2450000,
-        matchesPlayed: 5670,
-      });
-    } catch (e) {
-      setError('Failed to load admin data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /**
-   * Handle skill creation
-   * @param {Object} skillData - Skill data
-   */
-  const handleCreateSkill = async (skillData) => {
-    try {
-      // In real implementation, call API to create skill
-      alert('Skill created successfully!');
-      fetchData();
-    } catch (e) {
-      alert('Failed to create skill');
-    }
-  };
-
-  /**
-   * Handle quest creation
-   * @param {Object} questData - Quest data
-   */
-  const handleCreateQuest = async (questData) => {
-    try {
-      // In real implementation, call API to create quest
-      alert('Quest created successfully!');
-      fetchData();
-    } catch (e) {
-      alert('Failed to create quest');
-    }
-  };
+  const tabs = [
+    { id: 'stats', label: 'Dashboard', icon: '📊' },
+    { id: 'skills', label: 'Skills', icon: '🎯' },
+    { id: 'quests', label: 'Quests', icon: '⚔️' },
+    { id: 'content', label: 'Content Library', icon: '📚' },
+    { id: 'assessments', label: 'Assessments', icon: '✅' },
+  ];
 
   return (
-    <div className="admin-page">
-      <div className="admin-header">
-        <h1>Admin Dashboard</h1>
-        <p className="header-subtitle">Manage SkillTree AI platform</p>
-      </div>
-
-      {/* Stats Overview */}
-      {stats && (
-        <div className="admin-stats">
-          <div className="glass-panel stat-card">
-            <div className="stat-icon">👥</div>
-            <div className="stat-value">{stats.totalUsers}</div>
-            <div className="stat-label">Total Users</div>
-          </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-icon">🔥</div>
-            <div className="stat-value">{stats.activeUsers}</div>
-            <div className="stat-label">Active Users</div>
-          </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-icon">🌳</div>
-            <div className="stat-value">{stats.totalSkills}</div>
-            <div className="stat-label">Total Skills</div>
-          </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-icon">📜</div>
-            <div className="stat-value">{stats.totalQuests}</div>
-            <div className="stat-label">Total Quests</div>
-          </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-icon">⭐</div>
-            <div className="stat-value">{(stats.totalXP / 1000000).toFixed(1)}M</div>
-            <div className="stat-label">Total XP</div>
-          </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-icon">⚔️</div>
-            <div className="stat-value">{stats.matchesPlayed}</div>
-            <div className="stat-label">Matches Played</div>
-          </div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0a0c10 0%, #1a1d29 100%)',
+      color: '#fff',
+      display: 'flex'
+    }}>
+      {/* Sidebar */}
+      <div style={{
+        width: '240px',
+        background: 'rgba(15, 18, 25, 0.8)',
+        backdropFilter: 'blur(20px)',
+        borderRight: '1px solid rgba(124, 106, 245, 0.1)',
+        padding: '24px 0',
+        position: 'fixed',
+        height: '100vh',
+        overflowY: 'auto'
+      }}>
+        <div style={{ padding: '0 24px', marginBottom: '32px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>
+            Admin Panel
+          </h1>
+          <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+            Content Management
+          </p>
         </div>
-      )}
 
-      {/* Tabs */}
-      <div className="admin-tabs">
-        <button
-          className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          Overview
-        </button>
-        <button
-          className={`tab ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => setActiveTab('users')}
-        >
-          Users
-        </button>
-        <button
-          className={`tab ${activeTab === 'skills' ? 'active' : ''}`}
-          onClick={() => setActiveTab('skills')}
-        >
-          Skills
-        </button>
-        <button
-          className={`tab ${activeTab === 'quests' ? 'active' : ''}`}
-          onClick={() => setActiveTab('quests')}
-        >
-          Quests
-        </button>
-        <button
-          className={`tab ${activeTab === 'system' ? 'active' : ''}`}
-          onClick={() => setActiveTab('system')}
-        >
-          System
-        </button>
+        <nav>
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                width: '100%',
+                padding: '12px 24px',
+                background: activeTab === tab.id ? 'rgba(124, 106, 245, 0.15)' : 'transparent',
+                border: 'none',
+                borderLeft: activeTab === tab.id ? '3px solid #7c6af5' : '3px solid transparent',
+                color: activeTab === tab.id ? '#7c6af5' : '#9ca3af',
+                fontSize: '14px',
+                fontWeight: '500',
+                textAlign: 'left',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      {/* Tab Content */}
-      <div className="admin-content">
-        {activeTab === 'overview' && (
-          <div className="overview-tab">
-            <div className="glass-panel admin-section">
-              <h3>Platform Health</h3>
-              <div className="health-grid">
-                <div className="health-item">
-                  <span className="health-label">API Status</span>
-                  <span className="health-value status-ok">Operational</span>
-                </div>
-                <div className="health-item">
-                  <span className="health-label">Database</span>
-                  <span className="health-value status-ok">Connected</span>
-                </div>
-                <div className="health-item">
-                  <span className="health-label">Redis</span>
-                  <span className="health-value status-ok">Connected</span>
-                </div>
-                <div className="health-item">
-                  <span className="health-label">WebSocket</span>
-                  <span className="health-value status-ok">Operational</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="glass-panel admin-section">
-              <h3>Recent Activity</h3>
-              <div className="activity-list">
-                <div className="activity-item">
-                  <span className="activity-time">2 min ago</span>
-                  <span className="activity-desc">New user registered: john_doe</span>
-                </div>
-                <div className="activity-item">
-                  <span className="activity-time">15 min ago</span>
-                  <span className="activity-desc">Quest completed: Python Basics</span>
-                </div>
-                <div className="activity-item">
-                  <span className="activity-time">1 hour ago</span>
-                  <span className="activity-desc">Match completed: Arena #4521</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'users' && (
-          <div className="users-tab">
-            <div className="glass-panel admin-section">
-              <div className="section-header">
-                <h3>User Management</h3>
-                <button className="primary-cta">Add User</button>
-              </div>
-              <p className="empty-message">User list would be displayed here with pagination and search</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'skills' && (
-          <div className="skills-tab">
-            <div className="glass-panel admin-section">
-              <div className="section-header">
-                <h3>Skill Management</h3>
-                <button className="primary-cta">Add Skill</button>
-              </div>
-              <div className="items-list">
-                {skills.slice(0, 10).map((skill) => (
-                  <div key={skill.id} className="list-item">
-                    <span className="item-name">{skill.name}</span>
-                    <span className="item-type">{skill.type}</span>
-                    <span className="item-status">{skill.status}</span>
-                    <button className="secondary-cta">Edit</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'quests' && (
-          <div className="quests-tab">
-            <div className="glass-panel admin-section">
-              <div className="section-header">
-                <h3>Quest Management</h3>
-                <button className="primary-cta">Add Quest</button>
-              </div>
-              <div className="items-list">
-                {quests.slice(0, 10).map((quest) => (
-                  <div key={quest.id} className="list-item">
-                    <span className="item-name">{quest.title}</span>
-                    <span className="item-type">{quest.difficulty}</span>
-                    <span className="item-status">{quest.status}</span>
-                    <button className="secondary-cta">Edit</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'system' && (
-          <div className="system-tab">
-            <div className="glass-panel admin-section">
-              <h3>System Configuration</h3>
-              <div className="config-list">
-                <div className="config-item">
-                  <label>API Base URL</label>
-                  <input type="text" value="http://localhost:8000" readOnly className="config-input" />
-                </div>
-                <div className="config-item">
-                  <label>WebSocket URL</label>
-                  <input type="text" value="ws://localhost:8000" readOnly className="config-input" />
-                </div>
-                <div className="config-item">
-                  <label>Max Execution Time</label>
-                  <input type="number" value="30000" className="config-input" />
-                </div>
-                <div className="config-item">
-                  <label>Maintenance Mode</label>
-                  <input type="checkbox" />
-                </div>
-              </div>
-              <button className="primary-cta">Save Configuration</button>
-            </div>
-          </div>
-        )}
+      {/* Main Content */}
+      <div style={{ marginLeft: '240px', flex: 1, padding: '32px' }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            {activeTab === 'stats' && <StatsTab />}
+            {activeTab === 'skills' && <SkillsTab />}
+            {activeTab === 'quests' && <QuestsTab />}
+            {activeTab === 'content' && <ContentTab />}
+            {activeTab === 'assessments' && <AssessmentsTab />}
+          </motion.div>
+        </AnimatePresence>
       </div>
-
-      {error && <div className="error-message">{error}</div>}
     </div>
   );
-}
+};
 
 export default AdminPage;

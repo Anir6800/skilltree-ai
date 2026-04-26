@@ -15,7 +15,7 @@ import useAuthStore from '../store/authStore';
 export function useOnboardingCheck() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
@@ -36,6 +36,13 @@ export function useOnboardingCheck() {
       // Skip check for auth pages
       if (location.pathname === '/login' || location.pathname === '/register') {
         setIsChecking(false);
+        return;
+      }
+
+      // Skip onboarding check for admin users or admin routes
+      if (user?.is_staff || location.pathname.startsWith('/admin')) {
+        setIsChecking(false);
+        setNeedsOnboarding(false);
         return;
       }
 
@@ -60,7 +67,7 @@ export function useOnboardingCheck() {
     };
 
     checkOnboarding();
-  }, [isAuthenticated, location.pathname, navigate]);
+  }, [isAuthenticated, location.pathname, navigate, user]);
 
   return { needsOnboarding, isChecking };
 }

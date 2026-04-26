@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'leaderboard',
     'users',
     'mentor',
+    'admin_panel',
 ]
 
 MIDDLEWARE = [

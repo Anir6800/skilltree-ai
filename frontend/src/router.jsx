@@ -5,6 +5,7 @@ import { useOnboardingCheck } from './hooks/useOnboardingCheck';
 
 // Page component imports
 import AuthPage from './pages/AuthPage';
+import AdminLoginPage from './pages/AdminLoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SkillTreePage from './pages/SkillTreePage';
 import SkillDetailPage from './pages/SkillDetailPage';
@@ -37,7 +38,7 @@ const AuthGuard = ({ children, requireAdmin = false, skipOnboardingCheck = false
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requireAdmin && user?.role !== 'admin') {
+  if (requireAdmin && !user?.is_staff) {
     // User is not an admin, redirect to safe dashboard
     return <Navigate to="/dashboard" replace />;
   }
@@ -78,12 +79,17 @@ const AuthGuard = ({ children, requireAdmin = false, skipOnboardingCheck = false
  * Redirects authenticated users away from public-only routes (like login/register).
  * @param {Object} props
  * @param {React.ReactNode} props.children
+ * @param {string} [props.redirectTo] - Custom redirect path for authenticated users
  */
-const PublicGuard = ({ children }) => {
-  const { isAuthenticated } = useAuthStore();
+const PublicGuard = ({ children, redirectTo = '/dashboard' }) => {
+  const { isAuthenticated, user } = useAuthStore();
   
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    // If user is staff and trying to access admin login, redirect to admin panel
+    if (redirectTo === '/admin' && user?.is_staff) {
+      return <Navigate to="/admin" replace />;
+    }
+    return <Navigate to={redirectTo} replace />;
   }
 
   return children;
@@ -128,6 +134,10 @@ const router = createBrowserRouter([
         <AuthPage />
       </PublicGuard>
     ),
+  },
+  {
+    path: '/admin/login',
+    element: <AdminLoginPage />,
   },
 
   // Protected Main Routes
@@ -232,11 +242,11 @@ const router = createBrowserRouter([
     ),
   },
 
-  // Management
+  // Admin Management
   {
     path: '/admin',
     element: (
-      <AuthGuard requireAdmin>
+      <AuthGuard requireAdmin={true} skipOnboardingCheck={true}>
         <AdminPage />
       </AuthGuard>
     ),
