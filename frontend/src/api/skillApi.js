@@ -7,27 +7,15 @@ import api from './api';
 import { API_ENDPOINTS, PAGINATION } from '../constants';
 
 /**
- * Get paginated list of skills
- * @param {Object} params - Query parameters
- * @param {number} params.page - Page number
- * @param {number} params.pageSize - Items per page
- * @param {string} params.category - Filter by category
- * @param {string} params.status - Filter by status
- * @returns {Promise<Object>} Paginated skills list
+ * Get paginated list of skills — maps to the skill tree endpoint
+ * @param {Object} params - Query parameters (ignored, tree returns all)
+ * @returns {Promise<Object>} Skills list
  */
 export async function getSkills(params = {}) {
-  const { page = PAGINATION.DEFAULT_PAGE, pageSize = PAGINATION.DEFAULT_PAGE_SIZE, category, status } = params;
-  
-  const queryParams = {
-    page,
-    page_size: pageSize,
-  };
-  
-  if (category) queryParams.category = category;
-  if (status) queryParams.status = status;
-  
-  const response = await api.get(API_ENDPOINTS.SKILLS_LIST, { params: queryParams });
-  return response.data;
+  // The backend exposes skills via /api/skills/tree/ — use that and return nodes as a flat list
+  const response = await api.get('/api/skills/tree/');
+  const nodes = response.data?.nodes ?? response.data ?? [];
+  return { results: nodes, count: nodes.length };
 }
 
 /**

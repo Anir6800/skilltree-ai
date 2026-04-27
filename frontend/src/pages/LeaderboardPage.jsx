@@ -3,12 +3,12 @@
  * Redis-backed global/weekly/friends rankings with animated podium and rank-change tracking.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, Flame, Zap, Users, Globe, Calendar, TrendingUp,
   TrendingDown, Minus, ChevronDown, Loader2, AlertCircle,
-  RefreshCw, Crown, User as UserIcon, Shield,
+  RefreshCw, Crown,
 } from 'lucide-react';
 import api from '../api/api';
 import useAuthStore from '../store/authStore';

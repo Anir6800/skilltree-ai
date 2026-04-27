@@ -8,6 +8,7 @@ import QuestsTab from '../components/admin/QuestsTab';
 import ContentTab from '../components/admin/ContentTab';
 import AssessmentsTab from '../components/admin/AssessmentsTab';
 import StatsTab from '../components/admin/StatsTab';
+import FlaggedSubmissionsTab from '../components/admin/FlaggedSubmissionsTab';
 
 const AdminPage = () => {
   const { user, token } = useAuthStore();
@@ -38,6 +39,7 @@ const AdminPage = () => {
     { id: 'quests', label: 'Quests', icon: '⚔️' },
     { id: 'content', label: 'Content Library', icon: '📚' },
     { id: 'assessments', label: 'Assessments', icon: '✅' },
+    { id: 'flagged', label: 'Flagged Submissions', icon: '🚩' },
   ];
 
   return (
@@ -111,6 +113,7 @@ const AdminPage = () => {
             {activeTab === 'quests' && <QuestsTab />}
             {activeTab === 'content' && <ContentTab />}
             {activeTab === 'assessments' && <AssessmentsTab />}
+            {activeTab === 'flagged' && <FlaggedSubmissionsTab />}
           </motion.div>
         </AnimatePresence>
       </div>

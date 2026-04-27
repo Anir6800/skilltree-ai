@@ -36,6 +36,8 @@ class QuestSubmission(models.Model):
         ('failed', 'Failed'),
         ('flagged', 'Flagged'),
         ('explanation_provided', 'Explanation Provided'),
+        ('approved', 'Approved'),
+        ('confirmed_ai', 'Confirmed AI'),
     ]
 
     LANGUAGE_CHOICES = [

@@ -15,7 +15,10 @@ import {
   Copy, Check, Code2,
 } from 'lucide-react';
 import BottomNav from '../components/layout/BottomNav';
+import AIDetectionBadge from '../components/editor/AIDetectionBadge';
+import ExplanationModal from '../components/editor/ExplanationModal';
 import useEditorStore, { DEFAULT_TEMPLATES } from '../store/editorStore';
+import useAuthStore from '../store/authStore';
 import { cn } from '../utils/cn';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -214,6 +217,7 @@ function AiFeedbackPanel({ feedback, detectionScore }) {
 function EditorPage() {
   const { questId } = useParams();
   const navigate = useNavigate();
+  const { token } = useAuthStore();
 
   const { getQuestCode, getQuestLanguage, setQuestCode, setQuestLanguage, resetQuestCode, aiModeEnabled, toggleAiMode } = useEditorStore();
 
@@ -229,7 +233,10 @@ function EditorPage() {
   const [execOutput, setExecOutput] = useState(null);
   const [aiFeedback, setAiFeedback] = useState(null);
   const [detectionScore, setDetectionScore] = useState(undefined);
+  const [detectionLog, setDetectionLog] = useState(null);
   const [execTime, setExecTime] = useState(null);
+  const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
+  const [showExplanationModal, setShowExplanationModal] = useState(false);
 
   const editorRef = useRef(null);
   const pollRef = useRef(null);
@@ -304,10 +311,22 @@ function EditorPage() {
         const allPassed = tests.length > 0 && tests.every(t => t.status === 'passed');
         setExecStatus(data.status === 'passed' || allPassed ? 'passed' : data.status === 'failed' ? 'failed' : 'error');
         if (data.ai_feedback && Object.keys(data.ai_feedback).length > 0) setAiFeedback(data.ai_feedback);
-        if (data.ai_detection_score !== undefined) setDetectionScore(data.ai_detection_score);
+        if (data.ai_detection_score !== undefined) {
+          setDetectionScore(data.ai_detection_score);
+          setCurrentSubmissionId(sid);
+          // Try to fetch detection log
+          try {
+            const logRes = await api.get(`/api/ai-detection/submissions/${sid}/log/`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (logRes.data) setDetectionLog(logRes.data);
+          } catch (e) {
+            // Detection log not available, continue
+          }
+        }
       } catch { clearPoll(); setExecStatus('error'); setExecOutput({ stdout: '', stderr: 'Failed to fetch status.', test_results: [] }); }
     }, POLL_INTERVAL_MS);
-  }, [clearPoll]);
+  }, [clearPoll, token]);
 
   const handleRun = useCallback(async () => {
     if (!code.trim() || execStatus === 'running') return;
@@ -772,7 +791,14 @@ function EditorPage() {
           <div className="p-4 shrink-0">
             <AnimatePresence>
               {(aiFeedback || detectionScore !== undefined) && (
-                <AiFeedbackPanel feedback={aiFeedback} detectionScore={detectionScore} />
+                <>
+                  <AIDetectionBadge
+                    detectionScore={detectionScore}
+                    detectionLog={detectionLog}
+                    onExplainClick={() => setShowExplanationModal(true)}
+                  />
+                  <AiFeedbackPanel feedback={aiFeedback} detectionScore={detectionScore} />
+                </>
               )}
             </AnimatePresence>
             {!aiFeedback && detectionScore === undefined && (
@@ -782,6 +808,19 @@ function EditorPage() {
               </div>
             )}
           </div>
+
+          {/* Explanation Modal */}
+          <ExplanationModal
+            isOpen={showExplanationModal}
+            submissionId={currentSubmissionId}
+            onClose={() => setShowExplanationModal(false)}
+            onSuccess={() => {
+              setShowExplanationModal(false);
+              // Show success toast
+              alert('Explanation submitted successfully!');
+            }}
+            token={token}
+          />
         </div>
       </div>
 

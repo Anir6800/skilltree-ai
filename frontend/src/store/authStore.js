@@ -71,10 +71,17 @@ const useAuthStore = create(
         set({ isLoading: true, error: null });
         
         try {
-          await authApi.register(userData);
+          const result = await authApi.register(userData);
           
-          // Auto-login after registration
-          await authApi.login(userData.username, userData.password);
+          // Register endpoint returns tokens directly — store them
+          if (result.tokens) {
+            const { setAuthTokens } = await import('../api/api');
+            setAuthTokens(result.tokens.access, result.tokens.refresh);
+          } else {
+            // Fallback: login after registration
+            await authApi.login(userData.username, userData.password);
+          }
+
           const user = await authApi.getCurrentUser();
           
           set({
@@ -95,7 +102,6 @@ const useAuthStore = create(
             } else if (data.message) {
               errorMessage = data.message;
             } else if (typeof data === 'object') {
-              // Extract first error from field errors
               const firstField = Object.keys(data)[0];
               const firstError = data[firstField];
               if (Array.isArray(firstError)) {

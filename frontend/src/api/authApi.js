@@ -67,10 +67,16 @@ export async function register(userData) {
  * @returns {Promise<void>}
  */
 export async function logout() {
-  // For JWT, logout is client-side only - just clear tokens
-  // No need to call backend since JWT is stateless
-  clearAuthTokens();
-  return Promise.resolve();
+  const refreshToken = localStorage.getItem('skilltree_refresh_token');
+  try {
+    if (refreshToken) {
+      await api.post('/api/auth/logout/', { refresh: refreshToken });
+    }
+  } catch (e) {
+    // Ignore logout API errors — always clear tokens
+  } finally {
+    clearAuthTokens();
+  }
 }
 
 /**

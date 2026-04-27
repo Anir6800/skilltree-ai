@@ -8,9 +8,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Editor from '@monaco-editor/react';
 import {
-  Swords, Play, Send, RotateCcw, CheckCircle2, XCircle, AlertCircle,
+  Swords, Send, RotateCcw, CheckCircle2, AlertCircle,
   Loader2, Clock, Zap, Trophy, Users, Wifi, WifiOff, ChevronLeft,
-  Shield, Target, Code2,
+  Shield, Target, Code2, Play, Terminal,
 } from 'lucide-react';
 import api from '../api/api';
 import useAuthStore from '../store/authStore';
@@ -325,7 +325,6 @@ export default function MatchPage() {
   const [wsConnected, setWsConnected] = useState(false);
 
   // ── Match state ──
-  const [matchState, setMatchState] = useState(null);
   const [matchStatus, setMatchStatus] = useState('loading'); // loading | waiting | countdown | active | finished
   const [participants, setParticipants] = useState([]);
   const [readySet, setReadySet] = useState(new Set());
@@ -352,6 +351,10 @@ export default function MatchPage() {
   const pollRef = useRef(null);
   const pollAttemptsRef = useRef(0);
 
+  // ── Run (test without submitting) ──
+  const [running, setRunning] = useState(false);
+  const [runOutput, setRunOutput] = useState(null); // {stdout, stderr, test_results, is_simulated}
+
   // ── Result / Winner ──
   const [winner, setWinner] = useState(null); // { username, isMe }
   const [xpGained, setXpGained] = useState(0);
@@ -364,7 +367,6 @@ export default function MatchPage() {
   const [loadError, setLoadError] = useState(null);
 
   const currentUserId = user?.id;
-  const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || '';
 
   // Stable refs for values used inside WS callbacks — avoids reconnect on state change
   const questRef = useRef(null);
@@ -480,7 +482,6 @@ export default function MatchPage() {
     if (type === 'connected') {
       const state = data.match_state;
       if (!state) return;
-      setMatchState(state);
       setParticipants(state.participants || []);
       setQuest(state.quest || null);
       setCode(state.quest?.starter_code || '');
@@ -540,19 +541,38 @@ export default function MatchPage() {
     }
   }, [currentUserId, startCountdown, startRaceTimer, clearTimer]);
 
+  // ── WebSocket retry counter — only incremented manually by user or token refresh ──
+  const [retryCount, setRetryCount] = useState(0);
+  const retryCountRef = useRef(0);
+
   // ── Connect WebSocket ──
   useEffect(() => {
-    if (!matchId || !accessToken) {
-      setLoadError('Missing match ID or authentication token.');
+    if (!matchId) {
+      setLoadError('Missing match ID.');
+      return;
+    }
+
+    // Reset error and status on each (re)connect attempt
+    setLoadError(null);
+    setMatchStatus('loading');
+    setWsConnected(false);
+
+    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || '';
+    if (!token) {
+      setLoadError('Not authenticated. Please log in again.');
       return;
     }
 
     const wsBase = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
-    const wsUrl = `${wsBase}/ws/match/${matchId}/?token=${accessToken}`;
+    const wsUrl = `${wsBase}/ws/match/${matchId}/?token=${encodeURIComponent(token)}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+    let intentionalClose = false;
 
-    ws.onopen = () => setWsConnected(true);
+    ws.onopen = () => {
+      retryCountRef.current = 0; // reset on successful connect
+      setWsConnected(true);
+    };
 
     ws.onmessage = (event) => {
       try {
@@ -564,20 +584,50 @@ export default function MatchPage() {
     };
 
     ws.onerror = () => {
-      setLoadError('WebSocket connection failed. Please check the server is running.');
-    };
-
-    ws.onclose = (event) => {
-      setWsConnected(false);
-      if (event.code === 4001 || event.code === 4002 || event.code === 4003) {
-        setLoadError('Authentication failed. Please log in again.');
-      } else if (event.code === 4004) {
-        setLoadError('You are not a participant in this match.');
+      if (!intentionalClose) {
+        setLoadError('WebSocket connection failed. Please check the server is running.');
       }
     };
 
-    return () => ws.close();
-  }, [matchId, accessToken, handleWsMessage]);
+    ws.onclose = (event) => {
+      if (intentionalClose) return;
+      setWsConnected(false);
+
+      if (event.code === 4001 || event.code === 4002 || event.code === 4003) {
+        // Token expired — refresh once then reconnect
+        if (retryCountRef.current >= 2) {
+          setLoadError('Session expired. Please log in again.');
+          return;
+        }
+        import('../api/api').then(({ default: apiInstance }) => {
+          const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+          if (!refreshToken) {
+            setLoadError('Session expired. Please log in again.');
+            return;
+          }
+          apiInstance.post('/api/token/refresh/', { refresh: refreshToken })
+            .then(res => {
+              localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, res.data.access);
+              retryCountRef.current += 1;
+              setRetryCount(c => c + 1);
+            })
+            .catch(() => setLoadError('Session expired. Please log in again.'));
+        });
+      } else if (event.code === 4004) {
+        setLoadError('You are not a participant in this match.');
+      } else if (event.code === 1000 || event.code === 1001) {
+        // Clean close — match ended or navigated away, do nothing
+      } else {
+        // Abnormal close — show reconnect option
+        setLoadError('Connection lost. You can try reconnecting.');
+      }
+    };
+
+    return () => {
+      intentionalClose = true;
+      ws.close(1000);
+    };
+  }, [matchId, handleWsMessage, retryCount]);
 
   // ── Actions ──
   const handleReady = () => {
@@ -601,7 +651,11 @@ export default function MatchPage() {
     clearPoll();
     pollAttemptsRef.current = 0;
     try {
-      const res = await api.post(`/api/quests/${currentQuest.id}/submit/`, { code: code.trim(), language });
+      const res = await api.post(`/api/quests/${currentQuest.id}/submit/`, {
+        code: code.trim(),
+        language,
+        match_id: matchId,  // signals backend to bypass skill lock check
+      });
       const data = res.data;
       const sid = data.submission_id || data.id;
       if (sid) {
@@ -617,7 +671,70 @@ export default function MatchPage() {
 
   const handleReset = () => {
     setCode(questRef.current?.starter_code || '');
+    setRunOutput(null);
   };
+
+  const handleRun = useCallback(async () => {
+    const currentQuest = questRef.current;
+    if (!code.trim() || running || submitting) return;
+    setRunning(true);
+    setRunOutput(null);
+    try {
+      const testCases = (currentQuest?.test_cases || []).map(tc => ({
+        input: tc.input || '',
+        expected: tc.expected_output || tc.expected || '',
+      }));
+
+      if (testCases.length > 0) {
+        const res = await api.post('/api/execute/test/', {
+          code: code.trim(),
+          language,
+          test_cases: testCases,
+          use_ai_simulation: false,
+        });
+        const data = res.data;
+        setRunOutput({
+          stdout: data.overall_assessment || '',
+          stderr: data.error || '',
+          test_results: (data.results || []).map(r => ({
+            input: r.input,
+            expected: r.expected,
+            actual: r.actual,
+            status: r.passed ? 'passed' : 'failed',
+          })),
+          is_simulated: data.is_simulated || false,
+          tests_passed: data.tests_passed ?? 0,
+          tests_total: data.tests_total ?? testCases.length,
+        });
+      } else {
+        const res = await api.post('/api/execute/', {
+          code: code.trim(),
+          language,
+          stdin: '',
+        });
+        const data = res.data;
+        setRunOutput({
+          stdout: data.output || data.stdout || '',
+          stderr: data.stderr || '',
+          test_results: [],
+          is_simulated: false,
+          tests_passed: data.status === 'ok' ? 1 : 0,
+          tests_total: 1,
+        });
+      }
+    } catch (err) {
+      setRunOutput({
+        stdout: '',
+        stderr: err.response?.data?.error || err.response?.data?.detail || 'Execution failed.',
+        test_results: [],
+        is_simulated: false,
+        tests_passed: 0,
+        tests_total: 0,
+      });
+    } finally {
+      setRunning(false);
+    }
+  }, [code, language, running, submitting]);
 
   const handleEditorMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -634,6 +751,13 @@ export default function MatchPage() {
     navigate('/arena');
   };
 
+  const handleSurrender = () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'surrender' }));
+    // Navigate after a brief delay to allow message to send
+    setTimeout(() => navigate('/arena'), 500);
+  };
+
   const langColor = LANG_COLORS[language] || LANG_COLORS.python;
   const currentLang = LANGUAGES.find(l => l.id === language) || LANGUAGES[0];
   const opponentProgressPct = opponentScore.total > 0
@@ -645,6 +769,9 @@ export default function MatchPage() {
 
   // ── Loading / Error ──
   if (loadError) {
+    // Errors where reconnecting makes sense
+    const canRetry = !loadError.includes('not a participant') && !loadError.includes('log in again');
+
     return (
       <div className="fixed inset-0 bg-[#0a0c10] flex items-center justify-center p-6">
         <div className="fixed inset-0 pointer-events-none">
@@ -659,12 +786,23 @@ export default function MatchPage() {
           <AlertCircle size={40} className="text-red-400 mx-auto mb-4" />
           <h2 className="text-xl font-black text-white mb-2">Connection Error</h2>
           <p className="text-slate-400 text-sm mb-6">{loadError}</p>
-          <button
-            onClick={() => navigate('/arena')}
-            className="px-6 py-3 rounded-xl bg-primary/20 border border-primary/30 text-primary font-bold hover:bg-primary/30 transition-all duration-200"
-          >
-            Back to Arena
-          </button>
+          <div className="flex gap-3 justify-center">
+            {canRetry && (
+              <button
+                onClick={() => setRetryCount(c => c + 1)}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-accent text-white font-bold hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all duration-200"
+              >
+                <Loader2 size={15} />
+                Reconnect
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/arena')}
+              className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-slate-300 font-bold hover:bg-white/10 transition-all duration-200"
+            >
+              Back to Arena
+            </button>
+          </div>
         </motion.div>
       </div>
     );
@@ -842,6 +980,15 @@ export default function MatchPage() {
           >
             <ChevronLeft size={15} className="text-slate-400" />
           </button>
+          {matchStatus === 'active' && (
+            <button
+              onClick={handleSurrender}
+              className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold hover:bg-red-500/20 transition-all duration-200"
+              title="Forfeit the match and let your opponent win"
+            >
+              Surrender
+            </button>
+          )}
           <div className="flex items-center gap-2">
             <Swords size={14} className="text-primary" />
             <span className="text-sm font-black text-white">Match #{matchId}</span>
@@ -917,22 +1064,37 @@ export default function MatchPage() {
               {/* Reset */}
               <button
                 onClick={handleReset}
-                disabled={submitting}
+                disabled={submitting || running}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs font-bold hover:bg-white/10 hover:text-white transition-all duration-200 disabled:opacity-40"
               >
                 <RotateCcw size={11} />
                 Reset
               </button>
 
+              {/* Run */}
+              <button
+                onClick={handleRun}
+                disabled={running || submitting || matchStatus !== 'active' || !code.trim()}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200',
+                  'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400',
+                  'hover:bg-emerald-500/30 hover:shadow-[0_0_12px_rgba(52,211,153,0.3)]',
+                  (running || submitting || matchStatus !== 'active' || !code.trim()) && 'opacity-40 cursor-not-allowed'
+                )}
+              >
+                {running ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
+                Run
+              </button>
+
               {/* Submit */}
               <button
                 onClick={handleSubmit}
-                disabled={submitting || matchStatus !== 'active' || !code.trim()}
+                disabled={submitting || running || matchStatus !== 'active' || !code.trim()}
                 className={cn(
                   'flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200',
                   'bg-gradient-to-r from-primary/80 to-accent/80 border border-primary/40 text-white',
                   'hover:from-primary hover:to-accent hover:shadow-[0_0_16px_rgba(99,102,241,0.4)]',
-                  (submitting || matchStatus !== 'active' || !code.trim()) && 'opacity-40 cursor-not-allowed'
+                  (submitting || running || matchStatus !== 'active' || !code.trim()) && 'opacity-40 cursor-not-allowed'
                 )}
               >
                 {submitting ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
@@ -973,6 +1135,84 @@ export default function MatchPage() {
               {submitting && <SubmittingOverlay />}
             </AnimatePresence>
           </div>
+
+          {/* ── Run Output Panel ── */}
+          <AnimatePresence>
+            {(running || runOutput) && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="border-t border-white/5 bg-black/30 shrink-0 overflow-hidden"
+                style={{ maxHeight: '180px' }}
+              >
+                {/* Panel header */}
+                <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Terminal size={11} className="text-slate-500" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Output</span>
+                    {runOutput && (
+                      <span className={cn(
+                        'text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded',
+                        runOutput.tests_total > 0
+                          ? runOutput.tests_passed === runOutput.tests_total
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : 'bg-red-500/20 text-red-400'
+                          : 'bg-white/5 text-slate-500'
+                      )}>
+                        {runOutput.tests_total > 0
+                          ? `${runOutput.tests_passed}/${runOutput.tests_total} passed`
+                          : runOutput.stderr ? 'error' : 'ok'
+                        }
+                      </span>
+                    )}
+                    {runOutput?.is_simulated && (
+                      <span className="text-[9px] font-bold text-amber-400/70 uppercase tracking-widest">AI sim</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setRunOutput(null)}
+                    className="text-slate-600 hover:text-slate-400 transition-colors text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Panel body */}
+                <div className="overflow-y-auto p-2 space-y-1" style={{ maxHeight: '140px' }}>
+                  {running ? (
+                    <div className="flex items-center gap-2 px-2 py-1.5 text-slate-500 text-xs">
+                      <Loader2 size={11} className="animate-spin text-emerald-400" />
+                      Running...
+                    </div>
+                  ) : runOutput?.test_results?.length > 0 ? (
+                    runOutput.test_results.map((t, i) => (
+                      <div key={i} className={cn(
+                        'flex items-center gap-2 px-2 py-1 rounded-lg text-[10px] font-mono',
+                        t.status === 'passed' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'
+                      )}>
+                        <span className={t.status === 'passed' ? 'text-emerald-400' : 'text-red-400'}>
+                          {t.status === 'passed' ? '✓' : '✗'}
+                        </span>
+                        <span className="text-slate-500">in:</span>
+                        <span className="truncate max-w-[80px]">{t.input || '(none)'}</span>
+                        <span className="text-slate-500">→</span>
+                        <span className="truncate max-w-[80px]">{t.actual}</span>
+                        {t.status === 'failed' && (
+                          <span className="text-slate-600 ml-auto shrink-0">exp: {t.expected}</span>
+                        )}
+                      </div>
+                    ))
+                  ) : runOutput?.stderr ? (
+                    <pre className="text-red-400 text-[10px] font-mono px-2 py-1 whitespace-pre-wrap">{runOutput.stderr}</pre>
+                  ) : runOutput?.stdout ? (
+                    <pre className="text-slate-300 text-[10px] font-mono px-2 py-1 whitespace-pre-wrap">{runOutput.stdout}</pre>
+                  ) : null}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* ══ RIGHT 45% — Quest + Timer + Opponent ══ */}

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import useAuthStore from '../../store/authStore';
-import { API_BASE_URL } from '../../constants';
+import api from '../../api/api';
 
 const SkillsTab = () => {
-  const { token } = useAuthStore();
   const [skills, setSkills] = useState([]);
   const [allSkills, setAllSkills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,10 +24,8 @@ const SkillsTab = () => {
 
   const fetchSkills = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/skills/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.get('/api/admin/skills/');
+      const data = response.data;
       setSkills(data.results || data);
       setAllSkills(data.results || data);
     } catch (error) {
@@ -54,46 +50,31 @@ const SkillsTab = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const url = editingSkill
-        ? `${API_BASE_URL}/admin/skills/${editingSkill.id}/`
-        : `${API_BASE_URL}/admin/skills/`;
-      const method = editingSkill ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        setShowModal(false);
-        setEditingSkill(null);
-        setFormData({
-          title: '',
-          description: '',
-          category: 'algorithms',
-          difficulty: 1,
-          xp_required_to_unlock: 0,
-          prerequisites: []
-        });
-        fetchSkills();
+      if (editingSkill) {
+        await api.put(`/api/admin/skills/${editingSkill.id}/`, formData);
+      } else {
+        await api.post('/api/admin/skills/', formData);
       }
+      setShowModal(false);
+      setEditingSkill(null);
+      setFormData({
+        title: '',
+        description: '',
+        category: 'algorithms',
+        difficulty: 1,
+        xp_required_to_unlock: 0,
+        prerequisites: []
+      });
+      fetchSkills();
     } catch (error) {
       console.error('Failed to save skill:', error);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this skill? This will cascade to all related quests.')) return;
-
+    if (!window.confirm('Delete this skill? This will cascade to all related quests.')) return;
     try {
-      await fetch(`${API_BASE_URL}/admin/skills/${id}/`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/api/admin/skills/${id}/`);
       fetchSkills();
     } catch (error) {
       console.error('Failed to delete skill:', error);

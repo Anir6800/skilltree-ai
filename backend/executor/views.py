@@ -7,10 +7,12 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.cache import cache
+from django.shortcuts import get_object_or_404
 
 from .serializers import ExecuteCodeSerializer, RunTestsSerializer
 from .services import executor
 from .ai_executor import ai_executor
+from .pipeline import run_submission_pipeline
 
 
 class ExecutorHealthView(APIView):
@@ -187,3 +189,160 @@ class RunTestsView(APIView):
             result['is_simulated'] = False
         
         return Response(result, status=status.HTTP_200_OK)
+
+
+class SubmissionStatusView(APIView):
+    """
+    Poll submission status and results.
+    GET /api/execute/status/<submission_id>/
+    
+    Returns current submission state including:
+    - Execution results (output, exit code, test results)
+    - AI feedback and evaluation score
+    - AI detection score and flagged status
+    - Overall submission status
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, submission_id):
+        from quests.models import QuestSubmission
+        submission = get_object_or_404(
+            QuestSubmission,
+            id=submission_id,
+            user=request.user  # Ownership check
+        )
+        
+        # Calculate progress based on status
+        progress_map = {
+            'pending': 0,
+            'running': 25,
+            'passed': 100,
+            'failed': 100,
+            'flagged': 100,
+            'explanation_provided': 100,
+            'approved': 100,
+            'confirmed_ai': 100,
+        }
+        
+        return Response({
+            'id': submission.id,
+            'status': submission.status,
+            'progress_percent': progress_map.get(submission.status, 0),
+            'execution_result': submission.execution_result,
+            'ai_feedback': submission.ai_feedback,
+            'ai_detection_score': submission.ai_detection_score,
+            'created_at': submission.created_at.isoformat(),
+        })
+
+
+class PipelineStatusView(APIView):
+    """
+    Check Celery task status for submission pipeline.
+    GET /api/execute/pipeline-status/<task_id>/
+    
+    Returns:
+    - Celery task state (PENDING, STARTED, SUCCESS, FAILURE, RETRY)
+    - Progress percentage based on current step
+    - Current step information
+    - Result data if task is complete
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, task_id):
+        from celery.result import AsyncResult
+        
+        # Get Celery task result
+        task_result = AsyncResult(task_id)
+        
+        # Map Celery states to progress
+        state_progress = {
+            'PENDING': 0,
+            'STARTED': 15,
+            'RETRY': 15,
+            'SUCCESS': 100,
+            'FAILURE': 100,
+        }
+        
+        response_data = {
+            'task_id': task_id,
+            'status': task_result.state,
+            'progress_percent': state_progress.get(task_result.state, 0),
+        }
+        
+        # Add result if available
+        if task_result.state == 'SUCCESS':
+            response_data['result'] = task_result.result
+        elif task_result.state == 'FAILURE':
+            response_data['error'] = str(task_result.info)
+        elif task_result.state in ['STARTED', 'RETRY']:
+            # Try to get current step info from task info
+            if task_result.info and isinstance(task_result.info, dict):
+                response_data['current_step'] = task_result.info.get('step')
+                response_data['step_name'] = task_result.info.get('step_name')
+        
+        return Response(response_data)
+
+
+class StartPipelineView(APIView):
+    """
+    Start the full 7-step submission pipeline.
+    POST /api/execute/start-pipeline/
+    
+    Request body:
+    {
+        'submission_id': int
+    }
+    
+    Returns:
+    {
+        'task_id': str,
+        'submission_id': int,
+        'status': 'started'
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from quests.models import QuestSubmission
+        
+        submission_id = request.data.get('submission_id')
+        
+        if not submission_id:
+            return Response(
+                {'error': 'submission_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            submission = QuestSubmission.objects.get(
+                id=submission_id,
+                user=request.user
+            )
+        except QuestSubmission.DoesNotExist:
+            return Response(
+                {'error': 'Submission not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Update submission status to running
+        submission.status = 'running'
+        submission.save(update_fields=['status'])
+        
+        # Start the pipeline
+        try:
+            result = run_submission_pipeline(submission_id)
+            
+            return Response({
+                'task_id': result.id,
+                'submission_id': submission_id,
+                'status': 'started'
+            }, status=status.HTTP_202_ACCEPTED)
+            
+        except Exception as e:
+            submission.status = 'failed'
+            submission.save(update_fields=['status'])
+            
+            return Response(
+                {'error': f'Failed to start pipeline: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

@@ -23,21 +23,31 @@ class MatchParticipantSerializer(serializers.ModelSerializer):
 
 
 class MatchSerializer(serializers.ModelSerializer):
-    """Basic match serializer for list views."""
+    """Basic match serializer for list views — includes participant data."""
     quest = QuestDetailSerializer(read_only=True)
+    participants = serializers.SerializerMethodField()
     participant_count = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Match
         fields = [
             'id',
             'quest',
             'status',
+            'participants',
             'participant_count',
             'started_at',
             'ended_at'
         ]
-    
+
+    def get_participants(self, obj):
+        # Use prefetched data if available to avoid N+1
+        if hasattr(obj, '_prefetched_objects_cache') and 'matchparticipant_set' in obj._prefetched_objects_cache:
+            participants = obj.matchparticipant_set.all()
+        else:
+            participants = MatchParticipant.objects.filter(match=obj).select_related('user')
+        return MatchParticipantSerializer(participants, many=True).data
+
     def get_participant_count(self, obj):
         return obj.participants.count()
 

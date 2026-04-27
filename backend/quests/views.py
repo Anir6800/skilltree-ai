@@ -110,21 +110,26 @@ class QuestSubmitView(APIView):
         user = request.user
         
         # SECURITY: Check if skill is unlocked
-        skill = quest.skill
-        try:
-            skill_progress = SkillProgress.objects.get(user=user, skill=skill)
-            if skill_progress.status == 'locked':
+        # Exception: multiplayer match submissions bypass the skill lock check
+        # because the match creator already validated quest access
+        is_match_submission = bool(request.data.get('match_id'))
+        
+        if not is_match_submission:
+            skill = quest.skill
+            try:
+                skill_progress = SkillProgress.objects.get(user=user, skill=skill)
+                if skill_progress.status == 'locked':
+                    return Response({
+                        "error": "Quest is locked",
+                        "message": f"You must unlock the '{skill.title}' skill first.",
+                        "skill_required": skill.title
+                    }, status=status.HTTP_403_FORBIDDEN)
+            except SkillProgress.DoesNotExist:
                 return Response({
-                    "error": "Quest is locked",
-                    "message": f"You must unlock the '{skill.title}' skill first.",
+                    "error": "Skill not started",
+                    "message": f"You must start the '{skill.title}' skill first.",
                     "skill_required": skill.title
                 }, status=status.HTTP_403_FORBIDDEN)
-        except SkillProgress.DoesNotExist:
-            return Response({
-                "error": "Skill not started",
-                "message": f"You must start the '{skill.title}' skill first.",
-                "skill_required": skill.title
-            }, status=status.HTTP_403_FORBIDDEN)
         
         # SECURITY: Check if user already passed this quest
         existing_passed = QuestSubmission.objects.filter(
@@ -177,16 +182,142 @@ class QuestSubmitView(APIView):
             status='pending'
         )
 
-        # TODO: Trigger Celery chain for Phase 9
-        # from executor.tasks import evaluate_submission
-        # task = evaluate_submission.delay(submission.id)
-        
+        # Try async evaluation via Celery first, fall back to synchronous
+        celery_dispatched = False
+        try:
+            from executor.tasks import evaluate_submission
+            task = evaluate_submission.delay(submission.id)
+            celery_dispatched = True
+        except Exception:
+            celery_dispatched = False
+
+        if not celery_dispatched:
+            # Celery unavailable — run evaluation synchronously so the user gets a result
+            _evaluate_synchronously(submission)
+
         return Response({
             "submission_id": submission.id,
-            "task_id": None,  # Will be populated when Celery is integrated
-            "status": "pending",
-            "message": "Submission received and queued for evaluation."
+            "status": submission.status,
+            "message": "Submission received and evaluated." if not celery_dispatched else "Submission queued for evaluation.",
         }, status=status.HTTP_201_CREATED)
+
+
+def _evaluate_synchronously(submission):
+    """
+    Run code execution synchronously with AI simulation fallback when Docker is unavailable.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from executor.services import executor as code_executor
+        from executor.ai_executor import ai_executor
+
+        quest = submission.quest
+        user = submission.user
+
+        test_cases = [
+            {
+                'input': tc.get('input', ''),
+                'expected': tc.get('expected_output', tc.get('expected', ''))
+            }
+            for tc in (quest.test_cases or [])
+        ]
+
+        submission.status = 'running'
+        submission.save(update_fields=['status'])
+
+        if test_cases:
+            # Try Docker first
+            result = code_executor.run_test_cases(submission.code, submission.language, test_cases)
+            tests_passed = result.get('tests_passed', 0)
+            tests_total = result.get('tests_total', 0)
+            raw_results = result.get('results', [])
+
+            # Detect Docker failure and fall back to AI simulation
+            docker_unavailable = (
+                'Docker is not available' in str(result.get('stderr', '')) or
+                (tests_total > 0 and tests_passed == 0 and all(
+                    'Docker is not available' in str(r.get('actual', ''))
+                    for r in raw_results
+                ) if raw_results else False)
+            )
+
+            if docker_unavailable and ai_executor.is_available():
+                logger.info(f"Docker unavailable, using AI simulation for submission {submission.id}")
+                result = ai_executor.simulate_execution(
+                    submission.code, submission.language, test_cases
+                )
+                tests_passed = result.get('tests_passed', 0)
+                tests_total = result.get('tests_total', 0)
+                raw_results = result.get('results', [])
+
+            test_results = [
+                {
+                    'input': r.get('input', ''),
+                    'expected': r.get('expected', ''),
+                    'actual': r.get('actual', ''),
+                    'status': 'passed' if r.get('passed') else 'failed',
+                    'time_ms': r.get('time_ms', 0),
+                }
+                for r in raw_results
+            ]
+            all_passed = tests_total > 0 and tests_passed == tests_total
+        else:
+            result = code_executor.execute(submission.code, submission.language)
+            all_passed = result.get('status') == 'ok'
+            tests_passed = 1 if all_passed else 0
+            tests_total = 1
+            test_results = []
+
+        submission.execution_result = {
+            'output': result.get('output', result.get('overall_assessment', '')),
+            'stderr': result.get('stderr', result.get('error', '')),
+            'exit_code': result.get('exit_code', 0 if all_passed else 1),
+            'time_ms': result.get('execution_time_ms', 0),
+            'tests_passed': tests_passed,
+            'tests_total': tests_total,
+            'test_results': test_results,
+            'is_simulated': result.get('is_simulated', False),
+        }
+        submission.status = 'passed' if all_passed else 'failed'
+        submission.save()
+
+        # Award XP if passed (first time only)
+        if all_passed:
+            already_awarded = QuestSubmission.objects.filter(
+                user=user, quest=quest, status='passed'
+            ).exclude(id=submission.id).exists()
+
+            if not already_awarded:
+                xp_earned = int(quest.xp_reward * quest.difficulty_multiplier)
+                user.xp += xp_earned
+                user.save(update_fields=['xp', 'level'])
+
+                from users.models import XPLog
+                XPLog.objects.create(
+                    user=user,
+                    amount=xp_earned,
+                    source=f"Quest: {quest.title}"
+                )
+
+                from django.utils import timezone
+                from datetime import timedelta
+                today = timezone.now().date()
+                if user.last_active is None:
+                    user.streak_days = 1
+                elif user.last_active == today - timedelta(days=1):
+                    user.streak_days += 1
+                elif user.last_active != today:
+                    user.streak_days = 1
+                user.last_active = today
+                user.save(update_fields=['streak_days', 'last_active'])
+
+    except Exception as e:
+        logger.error(f"Synchronous evaluation failed for submission {submission.id}: {e}", exc_info=True)
+        submission.status = 'failed'
+        submission.execution_result = {'stderr': str(e), 'test_results': []}
+        submission.save()
 
 
 class QuestSubmissionHistoryView(generics.ListAPIView):

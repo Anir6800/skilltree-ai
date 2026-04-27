@@ -356,23 +356,42 @@ class MatchConsumer(AsyncJsonWebsocketConsumer):
         except MatchParticipant.DoesNotExist:
             pass
 
+    async def set_match_winner(self, match_id, user_id):
+        """Set match winner and finish the match, awarding XP."""
+        await self._set_match_winner_sync(match_id, user_id)
+    
     @database_sync_to_async
-    def set_match_winner(self, match_id, user_id):
-        """Set match winner and finish the match."""
+    def _set_match_winner_sync(self, match_id, user_id):
+        """Sync version of set_match_winner."""
         try:
+            from users.models import XPLog
             match = Match.objects.get(id=match_id)
             if match.status == 'active':
+                winner = match.participants.get(id=user_id)
                 match.winner_id = user_id
                 match.status = 'finished'
                 match.ended_at = timezone.now()
                 match.save()
-        except Match.DoesNotExist:
+                
+                # Award XP to winner (full quest reward for solving)
+                xp_earned = int(match.quest.xp_reward * match.quest.difficulty_multiplier)
+                winner.xp += xp_earned
+                winner.save(update_fields=['xp', 'level'])
+                
+                # Log XP
+                XPLog.objects.create(
+                    user=winner,
+                    amount=xp_earned,
+                    source=f"Match Win: {match.quest.title}"
+                )
+        except (Match.DoesNotExist, User.DoesNotExist):
             pass
 
     @database_sync_to_async
     def forfeit_match(self, match_id, user_id):
-        """Handle player forfeit."""
+        """Handle player forfeit and award XP to winner."""
         try:
+            from users.models import XPLog
             match = Match.objects.get(id=match_id)
             if match.status == 'active':
                 # Find another participant to declare winner
@@ -382,5 +401,17 @@ class MatchConsumer(AsyncJsonWebsocketConsumer):
                     match.status = 'finished'
                     match.ended_at = timezone.now()
                     match.save()
+                    
+                    # Award XP to winner (half of quest reward for forfeit)
+                    xp_earned = int(match.quest.xp_reward * match.quest.difficulty_multiplier / 2)
+                    other_participant.xp += xp_earned
+                    other_participant.save(update_fields=['xp', 'level'])
+                    
+                    # Log XP
+                    XPLog.objects.create(
+                        user=other_participant,
+                        amount=xp_earned,
+                        source=f"Match Win (Forfeit): {match.quest.title}"
+                    )
         except Match.DoesNotExist:
             pass

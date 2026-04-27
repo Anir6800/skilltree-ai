@@ -48,9 +48,13 @@ function DifficultyPips({ level }) {
   );
 }
 
-function MatchCard({ match, onJoin, isJoining }) {
-  const playerCount = match.participants?.length ?? 1;
+function MatchCard({ match, onJoin, isJoining, currentUserId }) {
+  // Flatten participants — MatchSerializer returns [{user: {...}, joined_at, score}]
+  const participantUsers = (match.participants ?? []).map(p => p.user ?? p);
+  const playerCount = participantUsers.length;
   const isFull = playerCount >= 2;
+  // Coerce both sides to number to avoid string vs number mismatch
+  const isOwn = participantUsers.some(p => Number(p.id) === Number(currentUserId));
 
   return (
     <motion.div
@@ -87,12 +91,12 @@ function MatchCard({ match, onJoin, isJoining }) {
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Difficulty</span>
         </div>
 
-        {/* Footer: players + join */}
+        {/* Footer: players + join/enter */}
         <div className="flex items-center justify-between pt-3 border-t border-white/5">
-          {/* Creator avatar + player count */}
+          {/* Participant avatars + count */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
-              {match.participants?.slice(0, 2).map((p, i) => (
+              {participantUsers.slice(0, 2).map((p, i) => (
                 <div
                   key={p.id ?? i}
                   className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-[10px] font-black border-2 border-black/40"
@@ -103,27 +107,34 @@ function MatchCard({ match, onJoin, isJoining }) {
               ))}
             </div>
             <div className="flex items-center gap-1.5">
-              <Users size={13} className={isFull ? 'text-red-400' : 'text-emerald-400'} />
-              <span className={cn('text-xs font-black', isFull ? 'text-red-400' : 'text-emerald-400')}>
+              <Users size={13} className={isFull && !isOwn ? 'text-red-400' : 'text-emerald-400'} />
+              <span className={cn('text-xs font-black', isFull && !isOwn ? 'text-red-400' : 'text-emerald-400')}>
                 {playerCount}/2
               </span>
             </div>
           </div>
 
-          {/* Join button */}
+          {/* Action button */}
           <button
             onClick={() => onJoin(match.id)}
-            disabled={isFull || isJoining}
+            disabled={(isFull && !isOwn) || isJoining}
             className={cn(
               'flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200',
-              isFull
+              isFull && !isOwn
                 ? 'bg-white/5 border border-white/10 text-slate-600 cursor-not-allowed'
-                : 'bg-gradient-to-r from-primary/80 to-accent/80 border border-primary/40 text-white hover:from-primary hover:to-accent hover:shadow-[0_0_16px_rgba(99,102,241,0.4)]',
+                : isOwn
+                  ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30'
+                  : 'bg-gradient-to-r from-primary/80 to-accent/80 border border-primary/40 text-white hover:from-primary hover:to-accent hover:shadow-[0_0_16px_rgba(99,102,241,0.4)]',
               isJoining && 'opacity-60 cursor-not-allowed'
             )}
           >
-            {isJoining ? <Loader2 size={11} className="animate-spin" /> : <Swords size={11} />}
-            {isFull ? 'Full' : 'Join'}
+            {isJoining
+              ? <Loader2 size={11} className="animate-spin" />
+              : isOwn
+                ? <Shield size={11} />
+                : <Swords size={11} />
+            }
+            {isFull && !isOwn ? 'Full' : isOwn ? 'Enter' : 'Join'}
           </button>
         </div>
       </div>
@@ -350,6 +361,11 @@ export default function ArenaPage() {
 
   const intervalRef = useRef(null);
 
+  // Clear any stale join error on mount
+  useEffect(() => {
+    setJoinError(null);
+  }, []);
+
   const fetchMatches = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
@@ -373,22 +389,39 @@ export default function ArenaPage() {
     return () => clearInterval(intervalRef.current);
   }, [fetchMatches]);
 
-  // Navigate to match once created
+  // Navigate to match once created — immediately
   useEffect(() => {
     if (createdMatchId) {
-      const timer = setTimeout(() => navigate(`/match/${createdMatchId}`), 1200);
-      return () => clearTimeout(timer);
+      navigate(`/match/${createdMatchId}`);
     }
   }, [createdMatchId, navigate]);
 
   const handleJoin = async (matchId) => {
-    setJoiningMatchId(matchId);
     setJoinError(null);
+
+    // Check if user already owns this match — navigate directly without API call
+    const match = matches.find(m => m.id === matchId);
+    if (match) {
+      const participantUsers = (match.participants ?? []).map(p => p.user ?? p);
+      const isOwn = participantUsers.some(p => Number(p.id) === Number(user?.id));
+      if (isOwn) {
+        navigate(`/match/${matchId}`);
+        return;
+      }
+    }
+
+    setJoiningMatchId(matchId);
     try {
       await api.post('/api/matches/join/', { invite_code: `MATCH-${matchId}` });
       navigate(`/match/${matchId}`);
     } catch (err) {
-      setJoinError(err.response?.data?.error || err.response?.data?.detail || 'Failed to join match.');
+      const errMsg = err.response?.data?.error || err.response?.data?.detail || 'Failed to join match.';
+      // If already in match, just navigate in instead of showing error
+      if (err.response?.status === 200 || errMsg.toLowerCase().includes('already')) {
+        navigate(`/match/${matchId}`);
+        return;
+      }
+      setJoinError(errMsg);
       setJoiningMatchId(null);
     }
   };
@@ -548,6 +581,7 @@ export default function ArenaPage() {
                     match={match}
                     onJoin={handleJoin}
                     isJoining={joiningMatchId === match.id}
+                    currentUserId={user?.id}
                   />
                 ))}
               </AnimatePresence>

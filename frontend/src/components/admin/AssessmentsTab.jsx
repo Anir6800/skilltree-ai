@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import useAuthStore from '../../store/authStore';
-import { API_BASE_URL } from '../../constants';
+import api from '../../api/api';
 
 const AssessmentsTab = () => {
-  const { token } = useAuthStore();
   const [questions, setQuestions] = useState([]);
   const [quests, setQuests] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -26,10 +24,8 @@ const AssessmentsTab = () => {
 
   const fetchQuestions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/questions/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.get('/api/admin/questions/');
+      const data = response.data;
       setQuestions(data.results || data);
     } catch (error) {
       console.error('Failed to fetch questions:', error);
@@ -38,10 +34,8 @@ const AssessmentsTab = () => {
 
   const fetchQuests = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/quests/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.get('/api/admin/quests/');
+      const data = response.data;
       setQuests(data.results || data);
     } catch (error) {
       console.error('Failed to fetch quests:', error);
@@ -51,29 +45,19 @@ const AssessmentsTab = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/questions/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
+      await api.post('/api/admin/questions/', formData);
+      setShowModal(false);
+      setFormData({
+        quest: '',
+        question_type: 'code',
+        prompt: '',
+        correct_answer: '',
+        mcq_options: [],
+        test_cases: [],
+        validation_criteria: '',
+        points: 10
       });
-
-      if (response.ok) {
-        setShowModal(false);
-        setFormData({
-          quest: '',
-          question_type: 'code',
-          prompt: '',
-          correct_answer: '',
-          mcq_options: [],
-          test_cases: [],
-          validation_criteria: '',
-          points: 10
-        });
-        fetchQuestions();
-      }
+      fetchQuestions();
     } catch (error) {
       console.error('Failed to create question:', error);
     }

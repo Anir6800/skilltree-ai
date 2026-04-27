@@ -26,7 +26,6 @@ def build_curriculum(user_id):
 def generate_personalized_path(user_id, profile_id):
     """
     Generate personalized learning path based on onboarding profile.
-    This is a placeholder - actual AI generation would use LM Studio + ChromaDB.
     """
     try:
         from users.onboarding_models import OnboardingProfile
@@ -35,14 +34,9 @@ def generate_personalized_path(user_id, profile_id):
         user = User.objects.get(id=user_id)
         profile = OnboardingProfile.objects.get(id=profile_id)
         
-        # Simulate AI path generation delay
-        import time
-        time.sleep(3)
-        
-        # Get skills matching user's interests and level
         category_levels = profile.category_levels
         
-        # Create initial skill progress for beginner skills
+        # Create initial skill progress for beginner skills matching user interests
         beginner_skills = Skill.objects.filter(
             category__in=category_levels.keys(),
             difficulty__lte=2
@@ -55,9 +49,8 @@ def generate_personalized_path(user_id, profile_id):
                 defaults={'status': 'available'}
             )
         
-        # Mark path as generated
         profile.path_generated = True
-        profile.save()
+        profile.save(update_fields=['path_generated'])
         
         # Trigger curriculum generation
         build_curriculum.delay(user.id)
@@ -68,13 +61,13 @@ def generate_personalized_path(user_id, profile_id):
         }
         
     except Exception as e:
-        print(f"Path generation failed: {e}")
-        # Mark as generated anyway to unblock user
+        import logging
+        logging.getLogger(__name__).error(f"Path generation failed for user {user_id}: {e}", exc_info=True)
+        # Mark as generated to unblock user even on failure
         try:
-            profile = OnboardingProfile.objects.get(id=profile_id)
-            profile.path_generated = True
-            profile.save()
-        except:
+            from users.onboarding_models import OnboardingProfile
+            OnboardingProfile.objects.filter(id=profile_id).update(path_generated=True)
+        except Exception:
             pass
         return {'status': 'error', 'error': str(e)}
 

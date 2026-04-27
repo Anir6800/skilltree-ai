@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/execute/', include('executor.urls', namespace='executor')),
     path('api/mentor/', include('mentor.urls', namespace='mentor')),
     path('api/admin/', include('admin_panel.urls', namespace='admin_panel')),
+    path('api/ai-detection/', include('ai_detection.urls', namespace='ai_detection')),
     path('api/', include('multiplayer.urls', namespace='multiplayer')),
 ]
 

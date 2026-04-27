@@ -91,24 +91,25 @@ export async function abandonQuest(questId) {
 }
 
 /**
- * Get user's active quests
+ * Get user's active quests — uses status filter on the main quests endpoint
  * @returns {Promise<Array>} Active quests
  */
 export async function getActiveQuests() {
-  const response = await api.get(`${API_ENDPOINTS.QUESTS_LIST}active/`);
-  return response.data;
+  const response = await api.get(API_ENDPOINTS.QUESTS_LIST, {
+    params: { status: 'in_progress' },
+  });
+  const data = response.data;
+  return data.results ?? data;
 }
 
 /**
- * Get user's completed quests
+ * Get user's completed quests — uses status filter on the main quests endpoint
  * @param {Object} params - Pagination params
  * @returns {Promise<Object>} Completed quests
  */
 export async function getCompletedQuests(params = {}) {
-  const { page = PAGINATION.DEFAULT_PAGE, pageSize = PAGINATION.DEFAULT_PAGE_SIZE } = params;
-  
-  const response = await api.get(`${API_ENDPOINTS.QUESTS_LIST}completed/`, {
-    params: { page, page_size: pageSize },
+  const response = await api.get(API_ENDPOINTS.QUESTS_LIST, {
+    params: { status: 'passed' },
   });
   return response.data;
 }
@@ -118,8 +119,11 @@ export async function getCompletedQuests(params = {}) {
  * @returns {Promise<Array>} Available quests
  */
 export async function getAvailableQuests() {
-  const response = await api.get(`${API_ENDPOINTS.QUESTS_LIST}available/`);
-  return response.data;
+  const response = await api.get(API_ENDPOINTS.QUESTS_LIST, {
+    params: { status: 'not_started' },
+  });
+  const data = response.data;
+  return data.results ?? data;
 }
 
 /**

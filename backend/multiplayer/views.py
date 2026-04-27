@@ -35,7 +35,14 @@ class MatchViewSet(viewsets.ModelViewSet):
         Filter matches based on query parameters.
         Default: show only waiting matches.
         """
-        queryset = Match.objects.select_related('quest', 'winner').prefetch_related('participants')
+        from django.db.models import Prefetch
+        queryset = Match.objects.select_related('quest', 'winner').prefetch_related(
+            'participants',
+            Prefetch(
+                'matchparticipant_set',
+                queryset=MatchParticipant.objects.select_related('user')
+            )
+        )
         
         # Filter by status
         match_status = self.request.query_params.get('status', 'waiting')
@@ -136,11 +143,12 @@ class MatchViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if user is already a participant
+        # Check if user is already a participant — redirect them in gracefully
         if match.participants.filter(id=request.user.id).exists():
+            serializer = MatchDetailSerializer(match)
             return Response(
-                {'error': 'You are already in this match'},
-                status=status.HTTP_400_BAD_REQUEST
+                {**serializer.data, 'already_joined': True},
+                status=status.HTTP_200_OK
             )
         
         # Check max participants (default 2)

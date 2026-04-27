@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TrendingUp, 
@@ -35,6 +36,7 @@ import MainLayout from '../components/layout/MainLayout';
 import CurriculumWidget from '../components/dashboard/CurriculumWidget';
 
 const DashboardPage = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -249,7 +251,7 @@ const DashboardPage = () => {
               <Trophy className="w-5 h-5 text-yellow-400" />
               Top Ranks
             </h3>
-            <button className="text-[10px] font-bold text-slate-400 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1">
+            <button className="text-[10px] font-bold text-slate-400 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1" onClick={() => navigate('/leaderboard')}>
               View All <ChevronRight className="w-3 h-3" />
             </button>
           </div>
@@ -296,7 +298,7 @@ const DashboardPage = () => {
             <Layout className="w-6 h-6 text-accent" />
             Active Quests
           </h3>
-          <button className="text-xs font-bold text-slate-400 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1 bg-white/5 px-4 py-2 rounded-full">
+          <button className="text-xs font-bold text-slate-400 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1 bg-white/5 px-4 py-2 rounded-full" onClick={() => navigate('/quests')}>
             Quest Log <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -307,6 +309,7 @@ const DashboardPage = () => {
               <motion.div
                 key={quest.id}
                 whileHover={{ scale: 1.02, translateY: -5 }}
+                onClick={() => navigate(`/editor/${quest.id}`)}
                 className="glass-panel p-6 rounded-3xl group cursor-pointer border-white/5 hover:border-primary/30 transition-all relative overflow-hidden"
               >
                 <div className="flex justify-between items-start mb-4">
@@ -357,7 +360,7 @@ const DashboardPage = () => {
             </div>
             <h4 className="text-xl font-black text-slate-300">No Active Quests</h4>
             <p className="text-slate-500 mt-2 max-w-xs mx-auto font-medium">Head over to the Skill Tree to unlock new challenges and start earning XP.</p>
-            <button className="mt-8 px-8 py-3 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20 hover:scale-105 transition-transform">
+            <button className="mt-8 px-8 py-3 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20 hover:scale-105 transition-transform" onClick={() => navigate('/skills')}>
               Explore Skills
             </button>
           </div>

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import useAuthStore from '../../store/authStore';
-import { API_BASE_URL } from '../../constants';
+import api from '../../api/api';
 
 const QuestsTab = () => {
-  const { token } = useAuthStore();
   const [quests, setQuests] = useState([]);
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,10 +13,8 @@ const QuestsTab = () => {
 
   const fetchQuests = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/quests/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.get('/api/admin/quests/');
+      const data = response.data;
       setQuests(data.results || data);
     } catch (error) {
       console.error('Failed to fetch quests:', error);
@@ -29,10 +25,8 @@ const QuestsTab = () => {
 
   const fetchSkills = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/skills/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.get('/api/admin/skills/');
+      const data = response.data;
       setSkills(data.results || data);
     } catch (error) {
       console.error('Failed to fetch skills:', error);

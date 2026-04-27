@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import useAuthStore from '../../store/authStore';
-import { API_BASE_URL } from '../../constants';
+import api from '../../api/api';
 
 const StatsTab = () => {
-  const { token } = useAuthStore();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -15,11 +13,8 @@ const StatsTab = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/stats/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setStats(data);
+      const response = await api.get('/api/admin/stats/');
+      setStats(response.data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {

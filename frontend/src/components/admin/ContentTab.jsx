@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import useAuthStore from '../../store/authStore';
-import { API_BASE_URL } from '../../constants';
+import api from '../../api/api';
 
 const ContentTab = () => {
-  const { token } = useAuthStore();
   const [content, setContent] = useState([]);
   const [skills, setSkills] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -25,10 +23,8 @@ const ContentTab = () => {
 
   const fetchContent = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/content/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.get('/api/admin/content/');
+      const data = response.data;
       setContent(data.results || data);
     } catch (error) {
       console.error('Failed to fetch content:', error);
@@ -37,10 +33,8 @@ const ContentTab = () => {
 
   const fetchSkills = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/skills/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.get('/api/admin/skills/');
+      const data = response.data;
       setSkills(data.results || data);
     } catch (error) {
       console.error('Failed to fetch skills:', error);
@@ -50,27 +44,17 @@ const ContentTab = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/content/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
+      await api.post('/api/admin/content/', formData);
+      setShowModal(false);
+      setFormData({
+        skill: '',
+        content_type: 'lesson',
+        title: '',
+        body: '',
+        code_example: '',
+        language: 'python'
       });
-
-      if (response.ok) {
-        setShowModal(false);
-        setFormData({
-          skill: '',
-          content_type: 'lesson',
-          title: '',
-          body: '',
-          code_example: '',
-          language: 'python'
-        });
-        fetchContent();
-      }
+      fetchContent();
     } catch (error) {
       console.error('Failed to create content:', error);
     }
@@ -78,14 +62,8 @@ const ContentTab = () => {
 
   const handlePublish = async (id) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/content/${id}/publish/`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        fetchContent();
-        alert('Content reviewed and published!');
-      }
+      await api.post(`/api/admin/content/${id}/publish/`);
+      fetchContent();
     } catch (error) {
       console.error('Failed to publish content:', error);
     }

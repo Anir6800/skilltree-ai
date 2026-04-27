@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions
 from django.db.models import Sum
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from datetime import timedelta
 from .models import User, XPLog
@@ -40,17 +41,18 @@ class DashboardView(APIView):
         
         # 1. XP History (Last 7 days)
         seven_days_ago = timezone.now() - timedelta(days=7)
+        from django.db.models.functions import TruncDate
         history_data = XPLog.objects.filter(
-            user=user, 
+            user=user,
             created_at__gte=seven_days_ago
-        ).extra(select={'day': 'date(created_at)'}).values('day').annotate(
+        ).annotate(
+            day=TruncDate('created_at')
+        ).values('day').annotate(
             xp_gained=Sum('amount')
         ).order_by('day')
         
-        # Fill missing days with 0 XP if needed (optional but better for charts)
-        # For now, just return what's available
         xp_history = [
-            {"date": item['day'], "xp_gained": item['xp_gained']}
+            {"date": str(item['day']), "xp_gained": item['xp_gained']}
             for item in history_data
         ]
 
