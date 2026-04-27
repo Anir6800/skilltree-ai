@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Skill, SkillProgress
+from .models import Skill, SkillProgress, GeneratedSkillTree
 
 class SkillSerializer(serializers.ModelSerializer):
     """
@@ -38,3 +38,41 @@ class SkillProgressSerializer(serializers.ModelSerializer):
         model = SkillProgress
         fields = ['id', 'skill', 'status', 'completed_at']
         read_only_fields = ['id', 'completed_at']
+
+
+class GeneratedSkillTreeSerializer(serializers.ModelSerializer):
+    """
+    Serializer for AI-generated skill trees.
+    """
+    skills_count = serializers.SerializerMethodField()
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    
+    class Meta:
+        model = GeneratedSkillTree
+        fields = [
+            'id', 'topic', 'created_by', 'created_by_username', 'is_public',
+            'status', 'skills_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_by', 'status', 'created_at', 'updated_at']
+    
+    def get_skills_count(self, obj):
+        return obj.skills_created.count()
+
+
+class GeneratedSkillTreeDetailSerializer(serializers.ModelSerializer):
+    """
+    Detailed serializer for AI-generated skill trees with full skill data.
+    """
+    skills = SkillSerializer(source='skills_created', many=True, read_only=True)
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    
+    class Meta:
+        model = GeneratedSkillTree
+        fields = [
+            'id', 'topic', 'created_by', 'created_by_username', 'is_public',
+            'status', 'skills', 'raw_ai_response', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'created_by', 'status', 'skills', 'raw_ai_response',
+            'created_at', 'updated_at'
+        ]

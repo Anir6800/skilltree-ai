@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SkillTreePage from './pages/SkillTreePage';
+import SkillTreeMakerPage from './pages/SkillTreeMakerPage';
 import SkillDetailPage from './pages/SkillDetailPage';
 import QuestPage from './pages/QuestPage';
 import EditorPage from './pages/EditorPage';
@@ -162,6 +163,14 @@ const router = createBrowserRouter([
     element: (
       <AuthGuard>
         <SkillTreePage />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: '/skill-tree-maker',
+    element: (
+      <AuthGuard>
+        <SkillTreeMakerPage />
       </AuthGuard>
     ),
   },

@@ -220,7 +220,7 @@ def main():
         print("Please review the failed checks above and ensure all security")
         print("fixes have been properly applied.")
         print()
-        print("Refer to SECURITY_FIXES.md for detailed fix instructions.")
+        print("Contact the development team for detailed fix instructions.")
         return 1
 
 

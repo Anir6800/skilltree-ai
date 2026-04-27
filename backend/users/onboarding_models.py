@@ -51,6 +51,8 @@ class OnboardingProfile(models.Model):
     # AI Path Generation Status
     path_generated = models.BooleanField(default=False)
     generation_started_at = models.DateTimeField(null=True, blank=True)
+    generated_tree_id = models.UUIDField(null=True, blank=True)
+    generated_topic = models.CharField(max_length=200, blank=True, default='')
     
     class Meta:
         ordering = ['-completed_at']

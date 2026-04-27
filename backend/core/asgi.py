@@ -17,6 +17,7 @@ from django.urls import path
 from multiplayer.consumers import MatchConsumer
 from executor.consumers import ExecutionStatusConsumer
 from admin_panel.consumers import AssessmentResultConsumer
+from skills.consumers import SkillTreeGenerationConsumer, QuestAutoFillConsumer
 
 application = ProtocolTypeRouter({
     # Standard HTTP requests handled by Django
@@ -33,6 +34,12 @@ application = ProtocolTypeRouter({
             
             # Assessment Result Routing: ws/assessments/<submission_id>/
             path("ws/assessments/<int:submission_id>/", AssessmentResultConsumer.as_asgi()),
+            
+            # Skill Tree Generation Routing: ws/skills/generation/
+            path("ws/skills/generation/", SkillTreeGenerationConsumer.as_asgi()),
+            
+            # Quest AutoFill Progress Routing: ws/skills/autofill/<tree_id>/
+            path("ws/skills/autofill/<uuid:tree_id>/", QuestAutoFillConsumer.as_asgi()),
         ])
     ),
 })

@@ -183,3 +183,85 @@ def skip_onboarding(request):
             'error': 'Failed to skip onboarding',
             'detail': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_profile(request):
+    """
+    Update onboarding profile with generated tree info.
+    
+    POST /api/onboarding/update-profile/
+    Body: {
+        "generated_topic": "Python Basics",
+        "generated_tree_id": "uuid",
+        "path_generated": true
+    }
+    
+    Returns: {
+        "status": "updated",
+        "profile": {...}
+    }
+    """
+    user = request.user
+    
+    try:
+        profile = user.onboarding_profile
+    except OnboardingProfile.DoesNotExist:
+        return Response({
+            'error': 'Onboarding profile not found',
+            'message': 'Complete onboarding first'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        # Update fields if provided
+        if 'generated_topic' in request.data:
+            profile.generated_topic = request.data['generated_topic']
+        
+        if 'generated_tree_id' in request.data:
+            profile.generated_tree_id = request.data['generated_tree_id']
+        
+        if 'path_generated' in request.data:
+            profile.path_generated = request.data['path_generated']
+        
+        profile.save()
+        
+        serializer = OnboardingProfileSerializer(profile)
+        return Response({
+            'status': 'updated',
+            'profile': serializer.data
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': 'Failed to update profile',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_profile(request):
+    """
+    Get current user's onboarding profile.
+    
+    GET /api/onboarding/profile/
+    
+    Returns: {
+        "id": "...",
+        "primary_goal": "...",
+        "generated_tree_id": "...",
+        ...
+    }
+    """
+    user = request.user
+    
+    try:
+        profile = user.onboarding_profile
+        serializer = OnboardingProfileSerializer(profile)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+    except OnboardingProfile.DoesNotExist:
+        return Response({
+            'error': 'Onboarding profile not found'
+        }, status=status.HTTP_404_NOT_FOUND)

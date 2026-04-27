@@ -71,3 +71,57 @@ def generate_personalized_path(user_id, profile_id):
             pass
         return {'status': 'error', 'error': str(e)}
 
+
+@shared_task(bind=True, max_retries=2)
+def generate_tree_task(self, tree_id, topic, depth):
+    """
+    Celery task for generating AI-powered skill trees.
+    Runs asynchronously to avoid blocking the API.
+    
+    Args:
+        tree_id: GeneratedSkillTree UUID
+        topic: Learning topic
+        depth: Tree depth (1-5)
+    """
+    try:
+        from skills.ai_tree_generator import SkillTreeGeneratorService
+        
+        service = SkillTreeGeneratorService()
+        result = service.execute_generation(tree_id, topic, depth)
+        
+        return result
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Tree generation task failed for tree {tree_id}: {str(e)}", exc_info=True)
+        
+        # Retry with exponential backoff
+        raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+
+
+
+@shared_task(bind=True, max_retries=2)
+def autofill_quests_task(self, tree_id):
+    """
+    Celery task for auto-filling stub quests with complete content.
+    Runs asynchronously to avoid blocking the API.
+    
+    Args:
+        tree_id: GeneratedSkillTree UUID
+    """
+    try:
+        from skills.quest_autofill import QuestAutoFillService
+        
+        service = QuestAutoFillService()
+        result = service.execute_autofill(tree_id)
+        
+        return result
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Quest auto-fill task failed for tree {tree_id}: {str(e)}", exc_info=True)
+        
+        # Retry with exponential backoff
+        raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))

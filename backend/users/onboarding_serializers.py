@@ -61,9 +61,11 @@ class OnboardingProfileSerializer(serializers.ModelSerializer):
             'selected_interests',
             'weekly_hours',
             'completed_at',
-            'path_generated'
+            'path_generated',
+            'generated_tree_id',
+            'generated_topic'
         ]
-        read_only_fields = ['id', 'completed_at', 'path_generated']
+        read_only_fields = ['id', 'completed_at']
 
 
 class OnboardingStatusSerializer(serializers.Serializer):
