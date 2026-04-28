@@ -14,6 +14,10 @@ class LeaderboardSnapshot(models.Model):
     class Meta:
         ordering = ['rank']
         get_latest_by = 'snapshot_at'
+        indexes = [
+            models.Index(fields=['user', 'snapshot_at'], name='leaderboard_user_snap_idx'),
+            models.Index(fields=['-snapshot_at'], name='leaderboard_snap_at_idx'),
+        ]
 
     def __str__(self):
         return f"{self.user.username} - Rank #{self.rank} ({self.total_xp} XP)"

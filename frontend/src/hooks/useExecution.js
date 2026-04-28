@@ -1,17 +1,17 @@
 /**
  * SkillTree AI - Execution Hook
- * Custom hook for code execution with polling and state management
+ * Custom hook for code execution with polling and state management.
+ *
+ * FIX: Previous version had an unbounded recursive poll loop — if the
+ * backend never returned a terminal status the hook polled forever.
+ * Added MAX_POLL_ATTEMPTS (default 30) so polling always terminates.
  * @module hooks/useExecution
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as executionApi from '../api/executionApi';
 
-/**
- * Execution status states
- * @readonly
- * @enum {string}
- */
+/** @readonly @enum {string} */
 const EXECUTION_STATUS = {
   IDLE: 'idle',
   RUNNING: 'running',
@@ -19,6 +19,9 @@ const EXECUTION_STATUS = {
   ERROR: 'error',
   TIMEOUT: 'timeout',
 };
+
+/** Maximum number of poll attempts before giving up */
+const MAX_POLL_ATTEMPTS = 30;
 
 /**
  * Custom hook for code execution
@@ -75,8 +78,16 @@ export function useExecution(options = {}) {
 
       // If async, poll for results
       const executionId = initialResult.id;
-      
+      let pollAttempts = 0;
+
       const pollForResult = async () => {
+        if (pollAttempts >= MAX_POLL_ATTEMPTS) {
+          setStatus(EXECUTION_STATUS.TIMEOUT);
+          setError('Execution timed out after too many poll attempts');
+          return null;
+        }
+        pollAttempts += 1;
+
         const pollResult = await executionApi.getExecutionStatus(executionId);
         
         if (pollResult.status === 'completed') {

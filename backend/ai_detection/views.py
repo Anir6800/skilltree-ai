@@ -8,7 +8,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 
@@ -108,16 +108,9 @@ class FlaggedSubmissionsView(APIView):
     GET /api/ai-detection/admin/flagged-submissions/
     Admin only. List all flagged submissions with detection details.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     
     def get(self, request):
-        # Admin check
-        if not request.user.is_staff:
-            return Response(
-                {"error": "Admin privileges required"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
         # Get all flagged submissions
         submissions = QuestSubmission.objects.filter(
             status__in=['flagged', 'explanation_provided']
@@ -176,16 +169,9 @@ class SubmissionReviewView(APIView):
     POST /api/admin/submissions/{id}/review/
     Admin only. Review and approve/override flagged submission.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     
     def post(self, request, submission_id):
-        # Admin check
-        if not request.user.is_staff:
-            return Response(
-                {"error": "Admin privileges required"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
         submission = get_object_or_404(QuestSubmission, id=submission_id)
         
         # Only allow review if flagged or explanation provided

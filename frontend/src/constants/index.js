@@ -173,11 +173,13 @@ export const ANIMATION = {
 
 /**
  * Local storage keys
+ * Aligned with authStore.js which writes 'auth_access' / 'auth_refresh' / 'auth_user'
  * @type {Object.<string, string>}
  */
 export const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'skilltree_access_token',
-  REFRESH_TOKEN: 'skilltree_refresh_token',
+  ACCESS_TOKEN: 'auth_access',
+  REFRESH_TOKEN: 'auth_refresh',
+  USER: 'auth_user',
   USER_PREFERENCES: 'skilltree_preferences',
   THEME: 'skilltree_theme',
 };
@@ -191,13 +193,17 @@ export const API_ENDPOINTS = {
   AUTH_REFRESH: '/api/token/refresh/',
   AUTH_REGISTER: '/api/auth/register/',
   AUTH_LOGOUT: '/api/auth/logout/',
-  USERS_ME: '/api/users/me/',
+  // Profile update lives at /api/auth/me/ (PATCH supported), /api/users/me/ is GET-only
+  USERS_ME: '/api/auth/me/',
   SKILLS_LIST: '/api/skills/',
   SKILLS_DETAIL: '/api/skills/{id}/',
   SKILLS_TREE: '/api/skills/tree/',
   QUESTS_LIST: '/api/quests/',
   QUESTS_DETAIL: '/api/quests/{id}/',
   QUESTS_SUBMIT: '/api/quests/{id}/submit/',
+  // Accept/complete map to submit — backend uses submission-based flow
+  QUESTS_ACCEPT: '/api/quests/{id}/submit/',
+  QUESTS_COMPLETE: '/api/quests/{id}/submit/',
   EXECUTE_CODE: '/api/execute/',
   EXECUTE_TEST: '/api/execute/test/',
   EXECUTE_STATUS: '/api/execute/status/{id}/',

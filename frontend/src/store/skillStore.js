@@ -252,6 +252,16 @@ const useSkillStore = create((set, get) => ({
     const { skills } = get();
     return skills.filter((s) => s.status === SKILL_STATUS.COMPLETED);
   },
+
+  // Get progress stats summary (used by ProfilePage)
+  get progressStats() {
+    const { skills } = get();
+    return {
+      total: skills.length,
+      completed: skills.filter((s) => s.status === SKILL_STATUS.COMPLETED).length,
+      in_progress: skills.filter((s) => s.status === SKILL_STATUS.IN_PROGRESS).length,
+    };
+  },
 }));
 
 export default useSkillStore;

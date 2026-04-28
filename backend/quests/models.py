@@ -1,6 +1,9 @@
 from django.db import models
 from django.conf import settings
 from skills.models import Skill
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class Quest(models.Model):
     """
@@ -67,3 +70,51 @@ class QuestSubmission(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.quest.title} ({self.status})"
+
+
+class SharedSolution(models.Model):
+    """
+    Shared code solution for peer review and learning.
+    Only created from passed submissions.
+    """
+    submission = models.OneToOneField(QuestSubmission, on_delete=models.CASCADE, related_name='shared_solution')
+    shared_at = models.DateTimeField(auto_now_add=True)
+    upvotes = models.ManyToManyField(User, related_name='upvoted_solutions', blank=True)
+    views_count = models.IntegerField(default=0)
+    is_anonymous = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-shared_at']
+        indexes = [
+            models.Index(fields=['-shared_at']),
+        ]
+
+    def __str__(self):
+        username = 'Anonymous' if self.is_anonymous else self.submission.user.username
+        return f"{username} - {self.submission.quest.title}"
+
+    def get_upvote_count(self):
+        """Get total upvotes."""
+        return self.upvotes.count()
+
+
+class SolutionComment(models.Model):
+    """
+    Threaded comments on shared solutions.
+    Supports nested replies via parent FK.
+    """
+    solution = models.ForeignKey(SharedSolution, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='solution_comments')
+    text = models.TextField(max_length=1000)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['solution', 'created_at']),
+            models.Index(fields=['author']),
+        ]
+
+    def __str__(self):
+        return f"{self.author.username} on {self.solution}"

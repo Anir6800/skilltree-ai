@@ -217,7 +217,7 @@ function AiFeedbackPanel({ feedback, detectionScore }) {
 function EditorPage() {
   const { questId } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuthStore();
+  const { accessToken: token } = useAuthStore();
 
   const { getQuestCode, getQuestLanguage, setQuestCode, setQuestLanguage, resetQuestCode, aiModeEnabled, toggleAiMode } = useEditorStore();
 
@@ -380,19 +380,29 @@ function EditorPage() {
       }
       const sid = data.submission_id || data.id || data.task_id;
       if (sid) { pollStatus(sid); } else { setExecOutput({ stdout: data.output || data.stdout || '', stderr: data.stderr || '', test_results: [] }); setExecStatus('passed'); }
-    } catch (err) { clearPoll(); setExecStatus('error'); setExecOutput({ stdout: '', stderr: err.response?.data?.error || err.response?.data?.detail || 'Execution failed.', test_results: [] }); }
+    } catch (err) { 
+      clearPoll(); 
+      setExecStatus('error'); 
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.response?.data?.detail || 'Execution failed.';
+      setExecOutput({ stdout: '', stderr: errorMsg, test_results: [] }); 
+    }
   }, [code, language, questId, quest, execStatus, aiModeEnabled, clearPoll, pollStatus]);
 
   const handleSubmit = useCallback(async () => {
-    if (!code.trim() || execStatus === 'running' || !questId) return;
+    if (!code.trim() || execStatus === 'running' || !questId || quest?.is_locked) return;
     clearPoll(); setExecStatus('running'); setExecOutput(null); setAiFeedback(null); setDetectionScore(undefined); setExecTime(null); pollAttemptsRef.current = 0;
     try {
       const res = await api.post(`/api/quests/${questId}/submit/`, { code: code.trim(), language });
       const data = res.data;
       const sid = data.submission_id || data.id;
       if (sid) { pollStatus(sid); } else { setExecStatus('error'); setExecOutput({ stdout: '', stderr: 'No task ID returned.', test_results: [] }); }
-    } catch (err) { clearPoll(); setExecStatus('error'); setExecOutput({ stdout: '', stderr: err.response?.data?.error || err.response?.data?.detail || 'Submission failed.', test_results: [] }); }
-  }, [code, language, questId, execStatus, clearPoll, pollStatus]);
+    } catch (err) { 
+      clearPoll(); 
+      setExecStatus('error'); 
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.response?.data?.detail || 'Submission failed.';
+      setExecOutput({ stdout: '', stderr: errorMsg, test_results: [] });
+    }
+  }, [code, language, questId, quest, execStatus, clearPoll, pollStatus]);
 
   const handleReset = useCallback(() => {
     if (!questId) return;
@@ -570,12 +580,12 @@ function EditorPage() {
             {/* Run */}
             <button
               onClick={handleRun}
-              disabled={isRunning || !code.trim()}
+              disabled={isRunning || !code.trim() || quest?.is_locked}
               className={cn(
                 'flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200',
                 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400',
                 'hover:bg-emerald-500/30 hover:shadow-[0_0_16px_rgba(52,211,153,0.3)]',
-                (isRunning || !code.trim()) && 'opacity-40 cursor-not-allowed'
+                (isRunning || !code.trim() || quest?.is_locked) && 'opacity-40 cursor-not-allowed'
               )}
             >
               {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
@@ -586,12 +596,12 @@ function EditorPage() {
             {questId && (
               <button
                 onClick={handleSubmit}
-                disabled={isRunning || !code.trim()}
+                disabled={isRunning || !code.trim() || quest?.is_locked}
                 className={cn(
                   'flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200',
                   'bg-gradient-to-r from-primary/80 to-accent/80 border border-primary/40 text-white',
                   'hover:from-primary hover:to-accent hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]',
-                  (isRunning || !code.trim()) && 'opacity-40 cursor-not-allowed'
+                  (isRunning || !code.trim() || quest?.is_locked) && 'opacity-40 cursor-not-allowed'
                 )}
               >
                 <Send size={12} />
@@ -603,11 +613,11 @@ function EditorPage() {
             {/* Reset */}
             <button
               onClick={handleReset}
-              disabled={isRunning}
+              disabled={isRunning || quest?.is_locked}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200',
                 'bg-white/5 border border-white/10 text-slate-400 hover:bg-white/10 hover:text-white',
-                isRunning && 'opacity-40 cursor-not-allowed'
+                (isRunning || quest?.is_locked) && 'opacity-40 cursor-not-allowed'
               )}
             >
               <RotateCcw size={12} />
@@ -620,6 +630,27 @@ function EditorPage() {
               <span className="text-[9px] text-slate-700">= Run</span>
             </div>
           </div>
+
+          {/* Locked Overlay / Banner */}
+          {quest?.is_locked && (
+            <div className="mx-4 mt-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
+              <div className="p-2 bg-amber-500/20 rounded-lg">
+                <AlertCircle className="text-amber-400" size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-amber-400 uppercase tracking-widest">Access Restricted</p>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  You must unlock the <span className="font-bold text-white">'{quest.skill_name}'</span> skill tree to submit solutions for this quest.
+                </p>
+              </div>
+              <button 
+                onClick={() => navigate('/skills')}
+                className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-amber-500/30 transition-all duration-200 shadow-lg"
+              >
+                View Skills
+              </button>
+            </div>
+          )}
 
           {/* Monaco Editor — fills remaining height */}
           <div className="flex-1 overflow-hidden">

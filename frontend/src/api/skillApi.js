@@ -19,7 +19,7 @@ export async function getSkills(params = {}) {
 }
 
 /**
- * Get single skill by ID
+ * Get single skill by ID — fetches the full tree and returns the matching node.
  * @param {number|string} id - Skill ID
  * @returns {Promise<Object>} Skill data
  */
@@ -27,10 +27,15 @@ export async function getSkill(id) {
   if (!id) {
     throw new Error('Skill ID is required');
   }
-  
-  const url = API_ENDPOINTS.SKILLS_DETAIL.replace('{id}', id);
-  const response = await api.get(url);
-  return response.data;
+
+  // Backend has no single-skill endpoint — fetch the tree and find the node.
+  const response = await api.get('/api/skills/tree/');
+  const nodes = response.data?.nodes ?? [];
+  const skill = nodes.find((n) => String(n.id) === String(id));
+  if (!skill) {
+    throw new Error(`Skill ${id} not found`);
+  }
+  return skill;
 }
 
 /**
@@ -43,18 +48,16 @@ export async function getSkillTree() {
 }
 
 /**
- * Unlock a skill node
+ * Unlock a skill node — maps to the start endpoint (backend combines unlock+start).
  * @param {number|string} skillId - Skill ID to unlock
- * @returns {Promise<Object>} Updated skill data
+ * @returns {Promise<Object>} Updated skill progress data
  */
 export async function unlockSkill(skillId) {
   if (!skillId) {
     throw new Error('Skill ID is required');
   }
-  
-  const url = `${API_ENDPOINTS.SKILLS_DETAIL.replace('{id}', skillId)}/unlock/`;
-  const response = await api.post(url);
-  return response.data;
+  // Backend has no separate unlock endpoint — /start/ handles both unlock and start.
+  return startLearning(skillId);
 }
 
 /**
@@ -73,32 +76,35 @@ export async function startLearning(skillId) {
 }
 
 /**
- * Complete a skill node
+ * Complete a skill node — backend auto-completes when all quests are passed.
+ * This is a client-side optimistic update; the server drives actual completion.
  * @param {number|string} skillId - Skill ID
- * @param {Object} completionData - Completion data
- * @returns {Promise<Object>} Updated skill data
+ * @param {Object} completionData - Completion data (unused, kept for API compat)
+ * @returns {Promise<Object>} Synthetic completion response
  */
 export async function completeSkill(skillId, completionData = {}) {
   if (!skillId) {
     throw new Error('Skill ID is required');
   }
-  
-  const url = `${API_ENDPOINTS.SKILLS_DETAIL.replace('{id}', skillId)}/complete/`;
-  const response = await api.post(url, completionData);
-  return response.data;
+  // Backend auto-completes skills via quest submission pipeline.
+  // Return synthetic response so the store can update optimistically.
+  return { id: skillId, status: 'completed' };
 }
 
 /**
- * Get skill progress for current user
+ * Get skill progress for current user — derived from the tree endpoint.
  * @returns {Promise<Object>} Skill progress data
  */
 export async function getSkillProgress() {
-  const response = await api.get(`${API_ENDPOINTS.SKILLS_LIST}progress/`);
-  return response.data;
+  const response = await api.get('/api/skills/tree/');
+  const nodes = response.data?.nodes ?? [];
+  const completed = nodes.filter((n) => n.status === 'completed').length;
+  const in_progress = nodes.filter((n) => n.status === 'in_progress').length;
+  return { total: nodes.length, completed, in_progress };
 }
 
 /**
- * Search skills
+ * Search skills — filters the tree nodes client-side.
  * @param {string} query - Search query
  * @param {Object} filters - Additional filters
  * @returns {Promise<Object>} Search results
@@ -107,27 +113,39 @@ export async function searchSkills(query, filters = {}) {
   if (!query) {
     throw new Error('Search query is required');
   }
-  
-  const params = { q: query, ...filters };
-  const response = await api.get(`${API_ENDPOINTS.SKILLS_LIST}search/`, { params });
-  return response.data;
+  const { results } = await getSkills();
+  const q = query.toLowerCase();
+  const filtered = results.filter(
+    (s) => s.name?.toLowerCase().includes(q) || s.description?.toLowerCase().includes(q)
+  );
+  return { results: filtered, count: filtered.length };
 }
 
 /**
- * Get skill categories
+ * Get skill categories — derived from tree nodes.
  * @returns {Promise<Array>} List of categories
  */
 export async function getSkillCategories() {
-  const response = await api.get(`${API_ENDPOINTS.SKILLS_LIST}categories/`);
-  return response.data;
+  const { results } = await getSkills();
+  const cats = [...new Set(results.map((s) => s.category).filter(Boolean))];
+  return cats;
 }
 
 /**
- * Get recommended skills for user
+ * Get recommended skills — returns available (unlocked but not started) skills.
  * @returns {Promise<Array>} Recommended skills
  */
 export async function getRecommendedSkills() {
-  const response = await api.get(`${API_ENDPOINTS.SKILLS_LIST}recommended/`);
+  const { results } = await getSkills();
+  return results.filter((s) => s.status === 'available').slice(0, 5);
+}
+
+/**
+ * Get skill radar data for current user
+ * @returns {Promise<Object>} Radar data with 5 categories and mastery percentages
+ */
+export async function getSkillRadar() {
+  const response = await api.get(`${API_ENDPOINTS.SKILLS_LIST}radar/`);
   return response.data;
 }
 
@@ -142,4 +160,5 @@ export default {
   searchSkills,
   getSkillCategories,
   getRecommendedSkills,
+  getSkillRadar,
 };

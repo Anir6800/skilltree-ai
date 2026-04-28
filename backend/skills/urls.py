@@ -3,7 +3,7 @@ from .views import (
     SkillTreeView, StartSkillView,
     GenerateSkillTreeView, GeneratedSkillTreeListView,
     GeneratedSkillTreeDetailView, PublishSkillTreeView,
-    AutoFillQuestsView
+    AutoFillQuestsView, SkillRadarView
 )
 
 app_name = 'skills'
@@ -11,6 +11,7 @@ app_name = 'skills'
 urlpatterns = [
     path('tree/', SkillTreeView.as_view(), name='skill_tree'),
     path('<int:pk>/start/', StartSkillView.as_view(), name='skill_start'),
+    path('radar/', SkillRadarView.as_view(), name='skill_radar'),
     
     # AI Tree Generation APIs
     path('generate/', GenerateSkillTreeView.as_view(), name='generate_tree'),

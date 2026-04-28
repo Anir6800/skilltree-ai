@@ -223,6 +223,12 @@ LM_STUDIO_URL = os.getenv('LM_STUDIO_URL', 'http://localhost:1234/v1')
 LM_STUDIO_MODEL = os.getenv('LM_STUDIO_MODEL', 'openai/gpt-oss-20b')
 CHROMA_PATH = os.getenv('CHROMA_PATH', './chroma_db')
 
+# LM Studio client tuning
+# How long (seconds) to cache the is_available() result.
+# Prevents hammering LM Studio with health-check requests on every AI call.
+LM_STUDIO_TIMEOUT = int(os.getenv('LM_STUDIO_TIMEOUT', 30))
+LM_STUDIO_AVAILABILITY_CACHE_TTL = float(os.getenv('LM_STUDIO_AVAILABILITY_CACHE_TTL', 30))
+
 EXECUTION_TIMEOUT = int(os.getenv('EXECUTION_TIMEOUT_SECONDS', 10))
 EXECUTION_MEMORY = int(os.getenv('EXECUTION_MEMORY_MB', 128))
 EXECUTION_CPU_QUOTA = int(os.getenv('EXECUTION_CPU_QUOTA', 50000))

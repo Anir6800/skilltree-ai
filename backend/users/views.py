@@ -6,7 +6,8 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 from datetime import timedelta
 from .models import User, XPLog
-from .serializers import DashboardSerializer, UserProfileSerializer
+from .serializers import DashboardSerializer
+from auth_app.serializers import UserProfileSerializer
 from quests.models import Quest
 from skills.models import Skill, SkillProgress
 

@@ -6,8 +6,8 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0002_onboarding_generated_fields'),
         ('users', '0003_onboardingprofile'),
+        ('users', '0003_studygroup'),
     ]
 
     operations = [

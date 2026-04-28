@@ -4,6 +4,7 @@ import useAuthStore from './store/authStore';
 import { useOnboardingCheck } from './hooks/useOnboardingCheck';
 
 // Page component imports
+import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -19,15 +20,15 @@ import ProfilePage from './pages/ProfilePage';
 import MentorPage from './pages/MentorPage';
 import OnboardingPage from './pages/OnboardingPage';
 import AdminPage from './pages/AdminPage';
+import GroupPage from './pages/GroupPage';
+import SolutionsPage from './pages/SolutionsPage';
+import ReportsPage from './pages/ReportsPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 /**
  * AuthGuard Component
  * Prevents access to protected routes if the user is not authenticated.
  * Also checks onboarding status and redirects if needed.
- * @param {Object} props
- * @param {React.ReactNode} props.children
- * @param {boolean} [props.requireAdmin=false]
- * @param {boolean} [props.skipOnboardingCheck=false]
  */
 const AuthGuard = ({ children, requireAdmin = false, skipOnboardingCheck = false }) => {
   const { isAuthenticated, user } = useAuthStore();
@@ -35,16 +36,14 @@ const AuthGuard = ({ children, requireAdmin = false, skipOnboardingCheck = false
   const { isChecking } = useOnboardingCheck();
 
   if (!isAuthenticated) {
-    // Redirect to login but save the current location to redirect back after login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requireAdmin && !user?.is_staff) {
-    // User is not an admin, redirect to safe dashboard
+  // Admin check: support both role-based and is_staff
+  if (requireAdmin && user?.role !== 'admin' && !user?.is_staff) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Show loading while checking onboarding (prevents flash)
   if (!skipOnboardingCheck && isChecking) {
     return (
       <div style={{
@@ -57,9 +56,9 @@ const AuthGuard = ({ children, requireAdmin = false, skipOnboardingCheck = false
         color: '#7c6af5'
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            width: '40px', 
-            height: '40px', 
+          <div style={{
+            width: '40px',
+            height: '40px',
             border: '3px solid rgba(124, 106, 245, 0.3)',
             borderTopColor: '#7c6af5',
             borderRadius: '50%',
@@ -78,16 +77,12 @@ const AuthGuard = ({ children, requireAdmin = false, skipOnboardingCheck = false
 /**
  * PublicGuard Component
  * Redirects authenticated users away from public-only routes (like login/register).
- * @param {Object} props
- * @param {React.ReactNode} props.children
- * @param {string} [props.redirectTo] - Custom redirect path for authenticated users
  */
 const PublicGuard = ({ children, redirectTo = '/dashboard' }) => {
   const { isAuthenticated, user } = useAuthStore();
-  
+
   if (isAuthenticated) {
-    // If user is staff and trying to access admin login, redirect to admin panel
-    if (redirectTo === '/admin' && user?.is_staff) {
+    if (redirectTo === '/admin' && (user?.role === 'admin' || user?.is_staff)) {
       return <Navigate to="/admin" replace />;
     }
     return <Navigate to={redirectTo} replace />;
@@ -101,13 +96,13 @@ const PublicGuard = ({ children, redirectTo = '/dashboard' }) => {
  * React Router v7 with role-based protected routes
  */
 const router = createBrowserRouter([
-  // Public Entry / Fallback
+  // Landing page — public, redirect authenticated users to dashboard
   {
     path: '/',
     element: (
-      <AuthGuard>
-        <Navigate to="/dashboard" replace />
-      </AuthGuard>
+      <PublicGuard redirectTo="/dashboard">
+        <LandingPage />
+      </PublicGuard>
     ),
   },
 
@@ -129,7 +124,7 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: '/auth', // Combined auth page if needed
+    path: '/auth',
     element: (
       <PublicGuard>
         <AuthPage />
@@ -141,7 +136,7 @@ const router = createBrowserRouter([
     element: <AdminLoginPage />,
   },
 
-  // Protected Main Routes
+  // Onboarding — protected, skip onboarding check to avoid redirect loop
   {
     path: '/onboarding',
     element: (
@@ -150,6 +145,8 @@ const router = createBrowserRouter([
       </AuthGuard>
     ),
   },
+
+  // Core App Routes
   {
     path: '/dashboard',
     element: (
@@ -233,7 +230,33 @@ const router = createBrowserRouter([
     ),
   },
 
-  // User & Support
+  // Community
+  {
+    path: '/groups',
+    element: (
+      <AuthGuard>
+        <GroupPage />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: '/solutions',
+    element: (
+      <AuthGuard>
+        <SolutionsPage />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: '/solutions/:questId',
+    element: (
+      <AuthGuard>
+        <SolutionsPage />
+      </AuthGuard>
+    ),
+  },
+
+  // User & Profile
   {
     path: '/profile/:userId',
     element: (
@@ -250,8 +273,16 @@ const router = createBrowserRouter([
       </AuthGuard>
     ),
   },
+  {
+    path: '/reports',
+    element: (
+      <AuthGuard>
+        <ReportsPage />
+      </AuthGuard>
+    ),
+  },
 
-  // Admin Management
+  // Admin
   {
     path: '/admin',
     element: (
@@ -261,10 +292,10 @@ const router = createBrowserRouter([
     ),
   },
 
-  // Catch-all
+  // 404 — themed not-found page
   {
     path: '*',
-    element: <Navigate to="/dashboard" replace />,
+    element: <NotFoundPage />,
   },
 ]);
 

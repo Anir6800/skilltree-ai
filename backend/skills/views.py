@@ -2,7 +2,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Avg, Count, Q
 from django.shortcuts import get_object_or_404
 import logging
 from .models import Skill, SkillProgress, SkillPrerequisite, GeneratedSkillTree
@@ -231,7 +231,7 @@ class GeneratedSkillTreeDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        serializer = GeneratedSkillTreeDetailSerializer(tree)
+        serializer = GeneratedSkillTreeDetailSerializer(tree, context={'request': request})
         return Response(serializer.data)
 
 
@@ -300,5 +300,84 @@ class AutoFillQuestsView(APIView):
             logger.error(f"Failed to start quest auto-fill: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Failed to start quest auto-fill"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+class SkillRadarView(APIView):
+    """
+    GET /api/skills/radar/
+    Returns skill mastery data for 5 categories (Algorithms, Data Structures, Systems, Web Dev, AI/ML).
+    Computes category_mastery as mean(mastery_score) across skills in each category.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Define the 5 core categories
+            CATEGORIES = {
+                'algorithms': 'Algorithms',
+                'ds': 'Data Structures',
+                'systems': 'Systems',
+                'webdev': 'Web Development',
+                'aiml': 'AI/ML',
+            }
+            
+            radar_data = []
+            
+            for category_key, category_name in CATEGORIES.items():
+                # Get all skills in this category
+                skills_in_category = Skill.objects.filter(category=category_key)
+                
+                # Get user's progress for skills in this category
+                user_progress = SkillProgress.objects.filter(
+                    user=request.user,
+                    skill__in=skills_in_category
+                )
+                
+                # Calculate mastery percentage
+                if user_progress.exists():
+                    # Count completed skills
+                    completed = user_progress.filter(status='completed').count()
+                    total = user_progress.count()
+                    mastery_pct = int((completed / total) * 100) if total > 0 else 0
+                    
+                    # Get top skill in category
+                    top_skill_progress = user_progress.filter(
+                        status='completed'
+                    ).first()
+                    
+                    top_skill = None
+                    if top_skill_progress:
+                        top_skill = {
+                            'title': top_skill_progress.skill.title,
+                            'mastery_tier': 'Mastered'
+                        }
+                else:
+                    # No progress in this category
+                    mastery_pct = 0
+                    completed = 0
+                    total = skills_in_category.count()
+                    top_skill = None
+                
+                radar_data.append({
+                    'category': category_name,
+                    'category_key': category_key,
+                    'mastery_pct': mastery_pct,
+                    'skills_completed': completed,
+                    'skills_total': total,
+                    'top_skill': top_skill,
+                })
+            
+            return Response({
+                'data': radar_data,
+                'timestamp': __import__('django.utils.timezone', fromlist=['now']).now().isoformat(),
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to compute skill radar: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Failed to compute skill radar"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

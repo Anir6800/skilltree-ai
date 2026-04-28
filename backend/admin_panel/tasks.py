@@ -3,11 +3,14 @@ Celery tasks for assessment evaluation.
 Handles async evaluation and WebSocket broadcasting.
 """
 
+import logging
 from celery import shared_task
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True, max_retries=3)
@@ -73,6 +76,7 @@ def evaluate_assessment_submission(self, submission_id: int):
         }
         
     except Exception as e:
+        logger.error(f"Assessment evaluation failed for submission {submission_id}: {e}", exc_info=True)
         # Update submission status to error
         try:
             submission = AssessmentSubmission.objects.get(id=submission_id)
@@ -82,8 +86,8 @@ def evaluate_assessment_submission(self, submission_id: int):
                 'feedback': f'Evaluation failed: {str(e)}'
             }
             submission.save(update_fields=['status', 'result'])
-        except Exception:
-            pass
+        except Exception as inner_exc:
+            logger.error(f"Failed to update submission {submission_id} error state: {inner_exc}")
         
         # Retry task if retries remaining
         if self.request.retries < self.max_retries:

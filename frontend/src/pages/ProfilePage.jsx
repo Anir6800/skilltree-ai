@@ -16,6 +16,8 @@ import { formatXP, formatDate } from '../utils/formatters';
 import { calculateXPProgress } from '../utils/xp';
 import { getLevelFromXP, getRankFromLevel } from '../constants';
 import { cn } from '../utils/cn';
+import SkillRadarChart from '../components/profile/SkillRadarChart';
+import MainLayout from '../components/layout/MainLayout';
 
 /**
  * Profile page component
@@ -86,6 +88,7 @@ function ProfilePage() {
   const xpProgress = calculateXPProgress(user?.xp || 0, level);
 
   return (
+    <MainLayout>
     <div className="min-h-screen bg-[#0a0c10] text-white overflow-hidden">
       {/* Ambient background */}
       <div className="fixed inset-0 pointer-events-none -z-10">
@@ -296,6 +299,9 @@ function ProfilePage() {
           >
             {activeTab === 'overview' && (
               <div className="space-y-6">
+                {/* Skill Radar Chart */}
+                <SkillRadarChart />
+
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
@@ -491,6 +497,7 @@ function ProfilePage() {
         </AnimatePresence>
       </div>
     </div>
+    </MainLayout>
   );
 }
 

@@ -6,6 +6,7 @@ Quest browsing, filtering, and submission endpoints with security.
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Prefetch, Case, When, Value, CharField
 from .models import Quest, QuestSubmission
@@ -36,29 +37,29 @@ class QuestListView(generics.ListAPIView):
             )
         )
 
-        # Filter by skill_id
         skill_id = self.request.query_params.get('skill_id')
         if skill_id:
             try:
                 skill_id = int(skill_id)
                 queryset = queryset.filter(skill_id=skill_id)
             except (ValueError, TypeError):
-                pass
+                raise ValidationError({"skill_id": "Must be a valid integer."})
 
         # Filter by type
         quest_type = self.request.query_params.get('type')
         if quest_type and quest_type in ['coding', 'debugging', 'mcq']:
             queryset = queryset.filter(type=quest_type)
 
-        # Filter by difficulty
         difficulty = self.request.query_params.get('difficulty')
         if difficulty:
             try:
                 difficulty = int(difficulty)
                 if 1 <= difficulty <= 5:
                     queryset = queryset.filter(difficulty_multiplier=difficulty)
+                else:
+                    raise ValidationError({"difficulty": "Must be between 1 and 5."})
             except (ValueError, TypeError):
-                pass
+                raise ValidationError({"difficulty": "Must be a valid integer."})
 
         # Filter by status
         status_filter = self.request.query_params.get('status')
@@ -116,19 +117,28 @@ class QuestSubmitView(APIView):
         
         if not is_match_submission:
             skill = quest.skill
+            import logging
+            logger = logging.getLogger(__name__)
+            
             try:
                 skill_progress = SkillProgress.objects.get(user=user, skill=skill)
                 if skill_progress.status == 'locked':
+                    logger.warning(f"User {user.id} attempted Quest {pk} but skill {skill.id} is locked.")
                     return Response({
                         "error": "Quest is locked",
                         "message": f"You must unlock the '{skill.title}' skill first.",
-                        "skill_required": skill.title
+                        "skill_required": skill.title,
+                        "skill_id": skill.id,
+                        "status": "locked"
                     }, status=status.HTTP_403_FORBIDDEN)
             except SkillProgress.DoesNotExist:
+                logger.warning(f"User {user.id} attempted Quest {pk} but no SkillProgress exists for skill {skill.id}.")
                 return Response({
                     "error": "Skill not started",
                     "message": f"You must start the '{skill.title}' skill first.",
-                    "skill_required": skill.title
+                    "skill_required": skill.title,
+                    "skill_id": skill.id,
+                    "status": "not_started"
                 }, status=status.HTTP_403_FORBIDDEN)
         
         # SECURITY: Check if user already passed this quest

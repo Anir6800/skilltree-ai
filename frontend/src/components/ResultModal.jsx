@@ -4,7 +4,7 @@
  * Implements glassmorphism design with dark gradients, floating panels, and motion-led hierarchy.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Confetti from 'react-confetti';
 import './ResultModal.css';

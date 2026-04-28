@@ -18,6 +18,7 @@ from multiplayer.consumers import MatchConsumer
 from executor.consumers import ExecutionStatusConsumer
 from admin_panel.consumers import AssessmentResultConsumer
 from skills.consumers import SkillTreeGenerationConsumer, QuestAutoFillConsumer
+from users.group_consumers import GroupChatConsumer
 
 application = ProtocolTypeRouter({
     # Standard HTTP requests handled by Django
@@ -40,6 +41,9 @@ application = ProtocolTypeRouter({
             
             # Quest AutoFill Progress Routing: ws/skills/autofill/<tree_id>/
             path("ws/skills/autofill/<uuid:tree_id>/", QuestAutoFillConsumer.as_asgi()),
+            
+            # Study Group Chat Routing: ws/group/<group_id>/
+            path("ws/group/<int:group_id>/", GroupChatConsumer.as_asgi()),
         ])
     ),
 })

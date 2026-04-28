@@ -53,6 +53,11 @@ interface AuthState {
    */
   updateUser: (partial: Partial<User>) => void;
 
+  /**
+   * Fetches fresh user data from the API and updates state
+   */
+  fetchUser: () => Promise<void>;
+
   // Helper Actions for UI (Ensuring full functionality)
   /**
    * Clears the current error state
@@ -160,6 +165,18 @@ const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('auth_user', JSON.stringify(updatedUser));
       return { user: updatedUser };
     });
+  },
+
+  fetchUser: async () => {
+    try {
+      const api = (await import('../api/api')).default;
+      const response = await api.get('/api/auth/me/');
+      const user = response.data;
+      set({ user });
+      localStorage.setItem('auth_user', JSON.stringify(user));
+    } catch (error) {
+      console.error('AuthStore: fetchUser failed', error);
+    }
   },
 
   clearError: () => set({ error: null }),

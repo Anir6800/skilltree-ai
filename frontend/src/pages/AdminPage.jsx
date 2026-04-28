@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import useAuthStore from '../store/authStore';
-import { API_BASE_URL } from '../constants';
 import SkillsTab from '../components/admin/SkillsTab';
 import QuestsTab from '../components/admin/QuestsTab';
 import ContentTab from '../components/admin/ContentTab';
 import AssessmentsTab from '../components/admin/AssessmentsTab';
 import StatsTab from '../components/admin/StatsTab';
 import FlaggedSubmissionsTab from '../components/admin/FlaggedSubmissionsTab';
+import HeatmapTab from '../components/admin/HeatmapTab';
 
 const AdminPage = () => {
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('stats');
-  const [loading, setLoading] = useState(false);
 
   if (!user?.is_staff) {
     return (
@@ -35,6 +33,7 @@ const AdminPage = () => {
 
   const tabs = [
     { id: 'stats', label: 'Dashboard', icon: '📊' },
+    { id: 'analytics', label: 'Analytics', icon: '📈' },
     { id: 'skills', label: 'Skills', icon: '🎯' },
     { id: 'quests', label: 'Quests', icon: '⚔️' },
     { id: 'content', label: 'Content Library', icon: '📚' },
@@ -109,6 +108,7 @@ const AdminPage = () => {
             transition={{ duration: 0.3 }}
           >
             {activeTab === 'stats' && <StatsTab />}
+            {activeTab === 'analytics' && <HeatmapTab />}
             {activeTab === 'skills' && <SkillsTab />}
             {activeTab === 'quests' && <QuestsTab />}
             {activeTab === 'content' && <ContentTab />}

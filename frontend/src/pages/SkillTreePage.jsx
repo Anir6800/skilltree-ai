@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactFlow, {
   Background,
@@ -15,12 +16,13 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { Sparkles, Filter, Loader2, AlertCircle } from 'lucide-react';
-import axios from 'axios';
-import { API_BASE_URL, SKILL_STATUS } from '../constants';
+import { Sparkles, Filter, Loader2, AlertCircle, Wand2 } from 'lucide-react';
+import { SKILL_STATUS } from '../constants';
+import api from '../api/api';
 import { cn } from '../utils/cn';
 import SkillNode from '../components/skill-tree/SkillNode';
 import SkillDetailPanel from '../components/skill-tree/SkillDetailPanel';
+import TreeGeneratorPanel from '../components/skill-tree/TreeGeneratorPanel';
 import MainLayout from '../components/layout/MainLayout';
 
 /**
@@ -78,6 +80,7 @@ const getLayoutedElements = (nodes, edges, direction = 'LR') => {
  * Skill Tree Page Component
  */
 function SkillTreePage() {
+  const navigate = useNavigate();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedSkill, setSelectedSkill] = useState(null);
@@ -85,6 +88,7 @@ function SkillTreePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rawSkills, setRawSkills] = useState([]);
+  const [showGenerator, setShowGenerator] = useState(false);
 
   /**
    * Fetch skill tree data from API
@@ -94,10 +98,7 @@ function SkillTreePage() {
     setError(null);
 
     try {
-      const token = localStorage.getItem('skilltree_access_token');
-      const response = await axios.get(`${API_BASE_URL}/api/skills/tree/`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const response = await api.get('/api/skills/tree/');
 
       const data = response.data;
 
@@ -180,14 +181,7 @@ function SkillTreePage() {
    */
   const handleStartSkill = useCallback(async (skillId) => {
     try {
-      const token = localStorage.getItem('skilltree_access_token');
-      await axios.post(
-        `${API_BASE_URL}/api/skills/${skillId}/start/`,
-        {},
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }
-      );
+      await api.post(`/api/skills/${skillId}/start/`, {});
 
       // Refresh skill tree
       await fetchSkillTree();
@@ -287,6 +281,17 @@ function SkillTreePage() {
 
             {/* Filter Toolbar */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowGenerator(g => !g)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold hover:bg-primary/20 transition-all duration-200 mr-2',
+                  showGenerator
+                    ? 'bg-primary/20 border-primary/50 text-primary shadow-[0_0_12px_rgba(99,102,241,0.3)]'
+                    : 'bg-primary/10 border-primary/30 text-primary'
+                )}
+              >
+                <Wand2 size={13} /> {showGenerator ? 'Close' : 'AI Builder'}
+              </button>
               <Filter size={16} className="text-slate-500" />
               {CATEGORIES.map((category) => (
                 <button
@@ -359,6 +364,19 @@ function SkillTreePage() {
             skill={selectedSkill}
             onClose={() => setSelectedSkill(null)}
             onStartSkill={handleStartSkill}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Tree Generator Panel */}
+      <AnimatePresence>
+        {showGenerator && (
+          <TreeGeneratorPanel
+            onClose={() => setShowGenerator(false)}
+            onTreeGenerated={() => {
+              fetchSkillTree();
+              setShowGenerator(false);
+            }}
           />
         )}
       </AnimatePresence>

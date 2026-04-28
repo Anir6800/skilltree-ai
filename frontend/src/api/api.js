@@ -203,6 +203,12 @@ export function clearAuthTokens() {
 }
 
 /**
+ * Get the current access token (exported for WebSocket hooks)
+ * @returns {string|null}
+ */
+export { getAccessToken };
+
+/**
  * Check if user is authenticated
  * @returns {boolean}
  */

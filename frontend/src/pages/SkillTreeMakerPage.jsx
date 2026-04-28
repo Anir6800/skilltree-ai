@@ -416,8 +416,8 @@ const SkillTreeMakerPage = () => {
     sessionStorage.setItem('lastGeneratedTreeId', generatedTree?.id);
     sessionStorage.setItem('lastGeneratedTopic', generatedTree?.topic);
     
-    // Navigate to skill tree with highlight flag
-    navigate('/skill-tree', { 
+    // Navigate to /skills (the correct route for SkillTreePage)
+    navigate('/skills', { 
       state: { 
         highlightNewSkills: true,
         generatedTreeId: generatedTree?.id,

@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from .heatmap_views import HeatmapAnalyticsView, SkillsListView
 
 app_name = 'admin_panel'
 
@@ -19,5 +20,7 @@ urlpatterns = [
     path('quests/generate-batch/', views.generate_batch_quests, name='generate-batch-quests'),
     path('quests/save-draft/', views.save_quest_draft, name='save-quest-draft'),
     path('quests/lm-studio-status/', views.check_lm_studio_status, name='lm-studio-status'),
+    path('analytics/heatmap/', HeatmapAnalyticsView.as_view(), name='heatmap-analytics'),
+    path('analytics/skills/', SkillsListView.as_view(), name='analytics-skills'),
     path('', include(router.urls)),
 ]

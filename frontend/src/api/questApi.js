@@ -46,38 +46,37 @@ export async function getQuest(id) {
 }
 
 /**
- * Accept a quest
+ * Accept a quest — backend uses submission-based flow, so this is a no-op
+ * that returns a synthetic "accepted" object so the store stays consistent.
  * @param {number|string} questId - Quest ID to accept
- * @returns {Promise<Object>} Updated quest data
+ * @returns {Promise<Object>} Synthetic accepted quest data
  */
 export async function acceptQuest(questId) {
   if (!questId) {
     throw new Error('Quest ID is required');
   }
-  
-  const url = API_ENDPOINTS.QUESTS_ACCEPT.replace('{id}', questId);
-  const response = await api.post(url);
-  return response.data;
+  // Backend has no separate accept endpoint — quests are started by submitting.
+  // Return a synthetic response so the store can update status optimistically.
+  return { id: questId, status: 'in_progress' };
 }
 
 /**
- * Complete a quest
+ * Complete a quest — delegates to the submit endpoint.
  * @param {number|string} questId - Quest ID
- * @param {Object} completionData - Completion data (code, output, etc.)
- * @returns {Promise<Object>} Completion result with XP reward
+ * @param {Object} completionData - Completion data (code, language)
+ * @returns {Promise<Object>} Submission result
  */
 export async function completeQuest(questId, completionData = {}) {
   if (!questId) {
     throw new Error('Quest ID is required');
   }
-  
-  const url = API_ENDPOINTS.QUESTS_COMPLETE.replace('{id}', questId);
+  const url = API_ENDPOINTS.QUESTS_SUBMIT.replace('{id}', questId);
   const response = await api.post(url, completionData);
   return response.data;
 }
 
 /**
- * Abandon a quest
+ * Abandon a quest — backend has no abandon endpoint; clear local state only.
  * @param {number|string} questId - Quest ID
  * @returns {Promise<void>}
  */
@@ -85,9 +84,7 @@ export async function abandonQuest(questId) {
   if (!questId) {
     throw new Error('Quest ID is required');
   }
-  
-  const url = `${API_ENDPOINTS.QUESTS_DETAIL.replace('{id}', questId)}/abandon/`;
-  await api.post(url);
+  // No backend endpoint — silently succeed so the store can remove it locally.
 }
 
 /**
@@ -127,28 +124,35 @@ export async function getAvailableQuests() {
 }
 
 /**
- * Get quest categories
+ * Get quest categories — derived from the quest list.
  * @returns {Promise<Array>} List of categories
  */
 export async function getQuestCategories() {
-  const response = await api.get(`${API_ENDPOINTS.QUESTS_LIST}categories/`);
-  return response.data;
+  const data = await getQuests({ pageSize: 200 });
+  const quests = data.results || data;
+  const cats = [...new Set(quests.map((q) => q.type).filter(Boolean))];
+  return cats;
 }
 
 /**
- * Search quests
- * @param {string} query - Search query
- * @param {Object} filters - Additional filters
+ * Search quests — uses the backend's skill_id / type / difficulty filters.
+ * @param {string} query - Search query (matched client-side against title)
+ * @param {Object} filters - Additional filters (difficulty, type, skill_id)
  * @returns {Promise<Object>} Search results
  */
 export async function searchQuests(query, filters = {}) {
   if (!query) {
     throw new Error('Search query is required');
   }
-  
-  const params = { q: query, ...filters };
-  const response = await api.get(`${API_ENDPOINTS.QUESTS_LIST}search/`, { params });
-  return response.data;
+  const data = await getQuests({ pageSize: 200, ...filters });
+  const quests = data.results || data;
+  const q = query.toLowerCase();
+  const filtered = quests.filter(
+    (quest) =>
+      quest.title?.toLowerCase().includes(q) ||
+      quest.description?.toLowerCase().includes(q)
+  );
+  return { results: filtered, count: filtered.length };
 }
 
 export default {

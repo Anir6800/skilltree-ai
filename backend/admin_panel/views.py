@@ -4,8 +4,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
-from functools import wraps
-import asyncio
 
 from skills.models import Skill, SkillProgress
 from quests.models import Quest
@@ -22,19 +20,6 @@ from .serializers import (
 from .tasks import evaluate_assessment_submission
 from .quest_generator import quest_generator
 from core.lm_client import lm_client, ExecutionServiceUnavailable
-
-
-def staff_required(view_func):
-    """Decorator to ensure user is staff/admin."""
-    @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
-        if not request.user.is_staff:
-            return Response(
-                {'error': 'Admin access required'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return view_func(request, *args, **kwargs)
-    return wrapper
 
 
 class AdminSkillViewSet(viewsets.ModelViewSet):
@@ -447,9 +432,9 @@ def generate_batch_quests(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        import asyncio
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
         try:
             quests = loop.run_until_complete(
                 quest_generator.generate_batch_quests(

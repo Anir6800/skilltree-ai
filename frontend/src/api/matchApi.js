@@ -9,38 +9,35 @@ import { API_ENDPOINTS, MATCH_MODES, MATCH_STATUS, PAGINATION } from '../constan
 /**
  * Create a new match
  * @param {Object} matchData - Match creation data
- * @param {string} matchData.mode - Match mode (ranked, casual, tournament, practice)
- * @param {string} matchData.skillId - Optional skill ID to match on
- * @param {number} matchData.maxPlayers - Maximum players (2-8)
- * @returns {Promise<Object>} Created match data
+ * @param {number} matchData.quest_id - Quest ID for the match
+ * @param {number} [matchData.max_participants=2] - Maximum players
+ * @returns {Promise<Object>} Created match data with invite_code
  */
 export async function createMatch(matchData) {
-  const { mode, skillId, maxPlayers } = matchData;
-  
-  if (!mode || !Object.values(MATCH_MODES).includes(mode)) {
-    throw new Error('Valid match mode is required');
+  const { quest_id, max_participants = 2 } = matchData;
+
+  if (!quest_id) {
+    throw new Error('quest_id is required');
   }
-  
-  const payload = { mode };
-  if (skillId) payload.skill_id = skillId;
-  if (maxPlayers) payload.max_players = Math.min(8, Math.max(2, maxPlayers));
-  
-  const response = await api.post(API_ENDPOINTS.MATCH_CREATE, payload);
+
+  const response = await api.post(API_ENDPOINTS.MATCH_CREATE, {
+    quest_id,
+    max_participants,
+  });
   return response.data;
 }
 
 /**
- * Join an existing match
- * @param {string} matchId - Match ID to join
+ * Join an existing match by invite code
+ * @param {string} inviteCode - Invite code (e.g. "MATCH-123")
  * @returns {Promise<Object>} Match data
  */
-export async function joinMatch(matchId) {
-  if (!matchId) {
-    throw new Error('Match ID is required');
+export async function joinMatch(inviteCode) {
+  if (!inviteCode) {
+    throw new Error('Invite code is required');
   }
-  
-  const url = API_ENDPOINTS.MATCH_JOIN.replace('{id}', matchId);
-  const response = await api.post(url);
+
+  const response = await api.post(API_ENDPOINTS.MATCH_JOIN, { invite_code: inviteCode });
   return response.data;
 }
 
@@ -74,24 +71,29 @@ export async function leaveMatch(matchId) {
 }
 
 /**
- * Submit match solution
+ * Submit match solution — uses the quest submit endpoint with match_id to bypass skill lock.
  * @param {string} matchId - Match ID
  * @param {Object} solution - Solution data
  * @param {string} solution.code - Submitted code
  * @param {string} solution.language - Programming language
- * @returns {Promise<Object>} Submission result
+ * @param {number} solution.questId - Quest ID
+ * @returns {Promise<Object>} Submission result with submission_id for polling
  */
 export async function submitSolution(matchId, solution) {
   if (!matchId) {
     throw new Error('Match ID is required');
   }
-  
-  if (!solution?.code || !solution?.language) {
-    throw new Error('Code and language are required');
+
+  if (!solution?.code || !solution?.language || !solution?.questId) {
+    throw new Error('Code, language, and questId are required');
   }
-  
-  const url = `${API_ENDPOINTS.MATCH_DETAIL.replace('{id}', matchId)}/submit/`;
-  const response = await api.post(url, solution);
+
+  const url = API_ENDPOINTS.QUESTS_SUBMIT.replace('{id}', solution.questId);
+  const response = await api.post(url, {
+    code: solution.code,
+    language: solution.language,
+    match_id: matchId,
+  });
   return response.data;
 }
 
@@ -111,19 +113,21 @@ export async function getMatchLeaderboard(matchId) {
 }
 
 /**
- * Get available matches to join
+ * Get available matches to join — uses the main list endpoint with status filter.
  * @param {Object} params - Query parameters
- * @param {string} params.mode - Filter by mode
- * @param {string} params.status - Filter by status
+ * @param {string} params.status - Filter by status (default: 'waiting')
  * @returns {Promise<Array>} Available matches
  */
 export async function getAvailableMatches(params = {}) {
-  const response = await api.get(`${API_ENDPOINTS.MATCH_CREATE}available/`, { params });
-  return response.data;
+  const response = await api.get(API_ENDPOINTS.MATCH_LIST, {
+    params: { status: params.status || 'waiting', ...params },
+  });
+  const data = response.data;
+  return Array.isArray(data) ? data : (data?.results ?? []);
 }
 
 /**
- * Get user's match history
+ * Get user's match history — uses the main list endpoint with finished status.
  * @param {Object} params - Query parameters
  * @param {number} params.page - Page number
  * @param {number} params.pageSize - Items per page
@@ -131,29 +135,49 @@ export async function getAvailableMatches(params = {}) {
  */
 export async function getMatchHistory(params = {}) {
   const { page = PAGINATION.DEFAULT_PAGE, pageSize = PAGINATION.DEFAULT_PAGE_SIZE } = params;
-  
-  const response = await api.get(`${API_ENDPOINTS.MATCH_CREATE}history/`, {
-    params: { page, page_size: pageSize },
+  const response = await api.get(API_ENDPOINTS.MATCH_LIST, {
+    params: { status: 'finished', page, page_size: pageSize },
   });
   return response.data;
 }
 
 /**
- * Get user's active match
+ * Get user's active match — returns the first in_progress match the user is in.
  * @returns {Promise<Object|null>} Active match or null
  */
 export async function getActiveMatch() {
-  const response = await api.get(`${API_ENDPOINTS.MATCH_CREATE}active/`);
-  return response.data;
+  try {
+    const response = await api.get(API_ENDPOINTS.MATCH_LIST, {
+      params: { status: 'active' },
+    });
+    const data = response.data;
+    const results = Array.isArray(data) ? data : (data?.results ?? []);
+    return results[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Get match statistics for current user
+ * Get match statistics for current user — derived from match history.
  * @returns {Promise<Object>} Match stats
  */
 export async function getMatchStats() {
-  const response = await api.get(`${API_ENDPOINTS.MATCH_CREATE}stats/`);
-  return response.data;
+  try {
+    const response = await api.get(API_ENDPOINTS.MATCH_LIST, {
+      params: { status: 'finished', page_size: 100 },
+    });
+    const data = response.data;
+    const matches = Array.isArray(data) ? data : (data?.results ?? []);
+    return {
+      total_matches: matches.length,
+      wins: 0, // Would need user context to compute — return safe default
+      losses: 0,
+      win_rate: 0,
+    };
+  } catch {
+    return { total_matches: 0, wins: 0, losses: 0, win_rate: 0 };
+  }
 }
 
 /**

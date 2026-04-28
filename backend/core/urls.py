@@ -17,6 +17,8 @@ urlpatterns = [
     # Custom App APIs
     path('api/auth/', include('auth_app.urls', namespace='auth_app')),
     path('api/users/', include('users.urls', namespace='users')),
+    path('api/groups/', include('users.groups_urls', namespace='groups')),
+    path('api/reports/', include('users.report_urls', namespace='reports')),
     path('api/onboarding/', include('users.onboarding_urls', namespace='onboarding')),
     path('api/skills/', include('skills.urls', namespace='skills')),
     path('api/curriculum/', include('skills.curriculum_urls', namespace='curriculum')),
@@ -26,7 +28,8 @@ urlpatterns = [
     path('api/mentor/', include('mentor.urls', namespace='mentor')),
     path('api/admin/', include('admin_panel.urls', namespace='admin_panel')),
     path('api/ai-detection/', include('ai_detection.urls', namespace='ai_detection')),
-    path('api/ai-evaluation/', include('ai_evaluation.quote_urls', namespace='quotes')),
+    path('api/ai-evaluation/', include('ai_evaluation.quote_urls')),
+    path('api/style/', include('ai_evaluation.style_urls', namespace='style')),
     path('api/', include('multiplayer.urls', namespace='multiplayer')),
 ]
 
