@@ -361,3 +361,107 @@ def _build_user_history(user):
         )
     
     return "\n".join(history_parts)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def get_hint(request):
+    """
+    Get a tiered hint for a quest.
+    
+    POST /api/mentor/hint/
+    Body: {
+        "quest_id": 12,
+        "hint_level": 1,  # 1=Nudge, 2=Approach, 3=Near-Solution
+        "current_code": "def solve():\n    pass"
+    }
+    
+    Returns: {
+        "hint_text": "Think about what data structure gives O(1) lookup.",
+        "xp_penalty": 0,
+        "hints_used_today": 1,
+        "hint_level_name": "Nudge"
+    }
+    """
+    from mentor.hint_engine import hint_engine
+    from mentor.serializers import HintRequestSerializer, HintResponseSerializer
+    
+    serializer = HintRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    user = request.user
+    quest_id = serializer.validated_data['quest_id']
+    hint_level = serializer.validated_data['hint_level']
+    current_code = serializer.validated_data.get('current_code', '')
+    
+    try:
+        # Get quest
+        quest = Quest.objects.get(id=quest_id)
+        
+        # Generate hint
+        hint_data = hint_engine.get_hint(
+            user=user,
+            quest=quest,
+            hint_level=hint_level,
+            current_code=current_code
+        )
+        
+        response_serializer = HintResponseSerializer(hint_data)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+    except Quest.DoesNotExist:
+        return Response({
+            'error': 'Quest not found.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except ExecutionServiceUnavailable as e:
+        return Response({
+            'error': 'Hint service is currently unavailable. Please try again later.',
+            'detail': str(e)
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except Exception as e:
+        return Response({
+            'error': 'Failed to generate hint.',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_hint_unlock_status(request, quest_id):
+    """
+    Get hint unlock status for a quest.
+    
+    GET /api/mentor/hint/unlock-status/{quest_id}/
+    
+    Returns: {
+        "level_1": true,
+        "level_2": false,
+        "level_3": false
+    }
+    """
+    from mentor.hint_engine import hint_engine
+    from mentor.serializers import HintUnlockStatusSerializer
+    
+    user = request.user
+    
+    try:
+        quest = Quest.objects.get(id=quest_id)
+        status_data = hint_engine.get_hint_unlock_status(user, quest)
+        
+        serializer = HintUnlockStatusSerializer(status_data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+    except Quest.DoesNotExist:
+        return Response({
+            'error': 'Quest not found.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'error': 'Failed to get hint unlock status.',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

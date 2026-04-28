@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from .views import (
     SkillTreeView, StartSkillView,
     GenerateSkillTreeView, GeneratedSkillTreeListView,
@@ -18,4 +18,7 @@ urlpatterns = [
     path('generated/<uuid:tree_id>/', GeneratedSkillTreeDetailView.as_view(), name='generated_tree_detail'),
     path('generated/<uuid:tree_id>/publish/', PublishSkillTreeView.as_view(), name='publish_tree'),
     path('generated/<uuid:tree_id>/autofill-quests/', AutoFillQuestsView.as_view(), name='autofill_quests'),
+    
+    # Adaptive Profile APIs
+    path('adaptive-profile/', include('skills.adaptive_urls')),
 ]

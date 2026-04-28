@@ -1,0 +1,113 @@
+/**
+ * SkillTree AI - Focus Mode Global Styles
+ * Hides gamification elements when focus mode is active
+ */
+
+/* Focus Mode Active State */
+body.focus-mode .gamification {
+  display: none !important;
+}
+
+/* Sidebar XP bar, level badge, streak indicator */
+body.focus-mode .xp-bar,
+body.focus-mode .level-badge,
+body.focus-mode .streak-indicator,
+body.focus-mode .xp-progress,
+body.focus-mode .level-display {
+  display: none !important;
+}
+
+/* Leaderboard widget */
+body.focus-mode .leaderboard-widget,
+body.focus-mode .leaderboard-container {
+  display: none !important;
+}
+
+/* XP reward badge on quest cards */
+body.focus-mode .xp-reward,
+body.focus-mode .xp-badge,
+body.focus-mode .reward-badge {
+  display: none !important;
+}
+
+/* Rank indicators */
+body.focus-mode .rank-indicator,
+body.focus-mode .rank-badge,
+body.focus-mode .player-rank {
+  display: none !important;
+}
+
+/* Badge notifications and WebSocket events */
+body.focus-mode .badge-notification,
+body.focus-mode .badge-earned-toast {
+  display: none !important;
+}
+
+/* ResultModal gamification elements */
+body.focus-mode .result-modal-confetti,
+body.focus-mode .xp-counter,
+body.focus-mode .xp-animation,
+body.focus-mode .streak-milestone,
+body.focus-mode .confetti {
+  display: none !important;
+}
+
+/* Keep only pass/fail and quote in ResultModal */
+body.focus-mode .result-modal-backdrop {
+  /* Visible */
+}
+
+body.focus-mode .result-modal-content {
+  /* Visible */
+}
+
+body.focus-mode .result-status {
+  /* Visible - pass/fail indicator */
+}
+
+body.focus-mode .result-quote {
+  /* Visible - motivational quote */
+}
+
+/* Hide action buttons that lead to gamification */
+body.focus-mode .result-modal-actions .xp-display,
+body.focus-mode .result-modal-actions .streak-display {
+  display: none !important;
+}
+
+/* Fade transition when entering/exiting focus mode */
+.focus-mode-transition {
+  animation: focusModeFade 0.3s ease-in-out;
+}
+
+@keyframes focusModeFade {
+  0% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Accessibility - respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .focus-mode-transition {
+    animation: none;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  body.focus-mode .gamification {
+    display: none !important;
+  }
+
+  body.focus-mode .xp-bar,
+  body.focus-mode .level-badge,
+  body.focus-mode .streak-indicator {
+    display: none !important;
+  }
+}

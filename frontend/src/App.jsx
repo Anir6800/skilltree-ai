@@ -2,12 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, Zap, Activity, Users, Settings, Award, Shield, Terminal, Database } from 'lucide-react';
 import useAuthStore from './store/authStore';
+import useUIStore from './store/uiStore';
 
 // Components
 import CinemaContainer from './components/layout/CinemaContainer';
 import SkillNexus from './components/nexus/SkillNexus';
 import ExplodingCard from './components/ui/ExplodingCard';
 import SpatialCarousel from './components/ui/SpatialCarousel';
+import FocusModeToggle from './components/FocusModeToggle';
+import PomodoroTimer from './components/PomodoroTimer';
+import BadgeNotificationQueue from './components/BadgeNotificationQueue';
+
+// Styles
+import './styles/focusMode.css';
 
 const SidebarItem = ({ icon: Icon, label, active }) => (
   <motion.div
@@ -25,6 +32,7 @@ const SidebarItem = ({ icon: Icon, label, active }) => (
  */
 const App = () => {
   const { user, rehydrate, isAuthenticated } = useAuthStore();
+  const { focusMode } = useUIStore();
   const [activeTab, setActiveTab] = useState('nexus');
   const [selectedNode, setSelectedNode] = useState(null);
 
@@ -32,6 +40,18 @@ const App = () => {
   useEffect(() => {
     rehydrate();
   }, [rehydrate]);
+
+  // Apply focus mode fade transition
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (main) {
+      main.classList.add('focus-mode-transition');
+      const timer = setTimeout(() => {
+        main.classList.remove('focus-mode-transition');
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [focusMode]);
 
   const handleNodeClick = (node) => {
     setSelectedNode(node);
@@ -188,6 +208,11 @@ const App = () => {
         onClose={() => setSelectedNode(null)} 
         data={selectedNode} 
       />
+
+      {/* Focus Mode Components */}
+      <FocusModeToggle />
+      <PomodoroTimer />
+      <BadgeNotificationQueue />
 
       {/* Depth Vignette */}
       <div className="fixed inset-0 pointer-events-none shadow-[inset_0_0_200px_rgba(0,0,0,0.8)] z-20" />

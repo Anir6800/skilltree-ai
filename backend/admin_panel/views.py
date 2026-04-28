@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from functools import wraps
+import asyncio
 
 from skills.models import Skill, SkillProgress
 from quests.models import Quest
@@ -19,7 +20,8 @@ from .serializers import (
     AssessmentSubmissionCreateSerializer
 )
 from .tasks import evaluate_assessment_submission
-from core.lm_client import lm_client
+from .quest_generator import quest_generator
+from core.lm_client import lm_client, ExecutionServiceUnavailable
 
 
 def staff_required(view_func):
@@ -347,3 +349,207 @@ def list_user_submissions(request):
     
     serializer = AssessmentSubmissionSerializer(submissions, many=True)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def generate_quest(request):
+    """
+    Generate a single quest using LM Studio.
+    
+    Request body:
+    {
+        "skill_id": int,
+        "topic_hint": str,
+        "difficulty": int (1-5),
+        "quest_type": str (coding|debugging|mcq)
+    }
+    
+    Returns:
+    {
+        "quest_data": {...},
+        "status": "preview"
+    }
+    """
+    try:
+        skill_id = request.data.get('skill_id')
+        topic_hint = request.data.get('topic_hint', '')
+        difficulty = request.data.get('difficulty', 3)
+        quest_type = request.data.get('quest_type', 'coding')
+        
+        if not skill_id:
+            return Response(
+                {'error': 'skill_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        quest_data = quest_generator.generate_quest(
+            skill_id=skill_id,
+            topic_hint=topic_hint,
+            difficulty=difficulty,
+            quest_type=quest_type
+        )
+        
+        return Response({
+            'quest_data': quest_data,
+            'status': 'preview'
+        }, status=status.HTTP_200_OK)
+        
+    except ValueError as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except ExecutionServiceUnavailable as e:
+        return Response(
+            {'error': f'LM Studio unavailable: {str(e)}'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    except Exception as e:
+        return Response(
+            {'error': f'Quest generation failed: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def generate_batch_quests(request):
+    """
+    Generate multiple quests in parallel using asyncio.
+    
+    Request body:
+    {
+        "skill_id": int,
+        "topic_hint": str,
+        "difficulty": int (1-5),
+        "quest_type": str (coding|debugging|mcq),
+        "count": int (1-10, default 5)
+    }
+    
+    Returns:
+    {
+        "quests": [...],
+        "count": int,
+        "status": "preview"
+    }
+    """
+    try:
+        skill_id = request.data.get('skill_id')
+        topic_hint = request.data.get('topic_hint', '')
+        difficulty = request.data.get('difficulty', 3)
+        quest_type = request.data.get('quest_type', 'coding')
+        count = request.data.get('count', 5)
+        
+        if not skill_id:
+            return Response(
+                {'error': 'skill_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            quests = loop.run_until_complete(
+                quest_generator.generate_batch_quests(
+                    skill_id=skill_id,
+                    topic_hint=topic_hint,
+                    difficulty=difficulty,
+                    quest_type=quest_type,
+                    count=count
+                )
+            )
+        finally:
+            loop.close()
+        
+        return Response({
+            'quests': quests,
+            'count': len(quests),
+            'status': 'preview'
+        }, status=status.HTTP_200_OK)
+        
+    except ValueError as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except ExecutionServiceUnavailable as e:
+        return Response(
+            {'error': f'LM Studio unavailable: {str(e)}'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    except Exception as e:
+        return Response(
+            {'error': f'Batch generation failed: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def save_quest_draft(request):
+    """
+    Save a generated quest as a draft.
+    
+    Request body:
+    {
+        "skill_id": int,
+        "quest_data": {...}
+    }
+    
+    Returns:
+    {
+        "quest_id": int,
+        "title": str,
+        "status": "draft"
+    }
+    """
+    try:
+        skill_id = request.data.get('skill_id')
+        quest_data = request.data.get('quest_data')
+        
+        if not skill_id or not quest_data:
+            return Response(
+                {'error': 'skill_id and quest_data are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        quest = quest_generator.save_quest_draft(skill_id, quest_data)
+        
+        return Response({
+            'quest_id': quest.id,
+            'title': quest.title,
+            'status': 'draft'
+        }, status=status.HTTP_201_CREATED)
+        
+    except ValueError as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to save quest: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def check_lm_studio_status(request):
+    """
+    Check if LM Studio is available for quest generation.
+    
+    Returns:
+    {
+        "available": bool,
+        "status": "ready" | "unavailable"
+    }
+    """
+    available = quest_generator.is_available()
+    
+    return Response({
+        'available': available,
+        'status': 'ready' if available else 'unavailable'
+    }, status=status.HTTP_200_OK)

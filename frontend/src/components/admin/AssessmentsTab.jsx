@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../api/api';
+import QuestGeneratorModal from './QuestGeneratorModal';
 
 const AssessmentsTab = () => {
   const [questions, setQuestions] = useState([]);
   const [quests, setQuests] = useState([]);
+  const [skills, setSkills] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [formData, setFormData] = useState({
     quest: '',
     question_type: 'code',
@@ -20,7 +23,18 @@ const AssessmentsTab = () => {
   useEffect(() => {
     fetchQuestions();
     fetchQuests();
+    fetchSkills();
   }, []);
+
+  const fetchSkills = async () => {
+    try {
+      const response = await api.get('/api/admin/skills/');
+      const data = response.data;
+      setSkills(data.results || data);
+    } catch (error) {
+      console.error('Failed to fetch skills:', error);
+    }
+  };
 
   const fetchQuestions = async () => {
     try {
@@ -67,20 +81,39 @@ const AssessmentsTab = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h2 style={{ fontSize: '28px', fontWeight: '700' }}>Assessment Questions</h2>
-        <button
-          onClick={() => setShowModal(true)}
-          style={{
-            padding: '12px 24px',
-            background: 'linear-gradient(135deg, #7c6af5 0%, #9d8df7 100%)',
-            border: 'none',
-            borderRadius: '12px',
-            color: '#fff',
-            fontWeight: '600',
-            cursor: 'pointer'
-          }}
-        >
-          + Add Question
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={() => setShowGenerateModal(true)}
+            style={{
+              padding: '12px 24px',
+              background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+              border: 'none',
+              borderRadius: '12px',
+              color: '#fff',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            ✦ Generate with AI
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            style={{
+              padding: '12px 24px',
+              background: 'linear-gradient(135deg, #7c6af5 0%, #9d8df7 100%)',
+              border: 'none',
+              borderRadius: '12px',
+              color: '#fff',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            + Add Question
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gap: '16px' }}>
@@ -312,6 +345,16 @@ const AssessmentsTab = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <QuestGeneratorModal
+        isOpen={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+        skills={skills}
+        onQuestSaved={() => {
+          fetchQuests();
+          setShowGenerateModal(false);
+        }}
+      />
     </div>
   );
 };

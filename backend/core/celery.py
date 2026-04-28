@@ -52,6 +52,16 @@ app.conf.beat_schedule = {
         'task': 'leaderboard.tasks.reset_weekly',
         'schedule': crontab(hour=0, minute=0, day_of_week='monday'),
     },
+    # Periodic tree adaptation every 24 hours at 02:00 UTC
+    'periodic-tree-adaptation-daily': {
+        'task': 'skills.adaptive_tasks.periodic_tree_adaptation',
+        'schedule': crontab(hour=2, minute=0),
+    },
+    # Generate weekly reports every Monday at 08:00 UTC
+    'generate-weekly-reports-monday': {
+        'task': 'users.tasks.generate_weekly_reports_for_all_users',
+        'schedule': crontab(hour=8, minute=0, day_of_week='monday'),
+    },
 }
 
 

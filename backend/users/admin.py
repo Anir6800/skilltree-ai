@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import User
+from .adaptive_admin import AdaptiveProfileAdmin, UserSkillFlagAdmin
+from .badge_admin import BadgeAdmin, UserBadgeAdmin
 
 
 @admin.register(User)
