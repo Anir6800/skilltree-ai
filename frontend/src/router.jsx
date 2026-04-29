@@ -12,6 +12,7 @@ import SkillTreePage from './pages/SkillTreePage';
 import SkillTreeMakerPage from './pages/SkillTreeMakerPage';
 import SkillDetailPage from './pages/SkillDetailPage';
 import QuestPage from './pages/QuestPage';
+import MCQQuestPage from './pages/MCQQuestPage';
 import EditorPage from './pages/EditorPage';
 import ArenaPage from './pages/ArenaPage';
 import MatchPage from './pages/MatchPage';
@@ -31,9 +32,21 @@ import NotFoundPage from './pages/NotFoundPage';
  * Also checks onboarding status and redirects if needed.
  */
 const AuthGuard = ({ children, requireAdmin = false, skipOnboardingCheck = false }) => {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
   const location = useLocation();
   const { isChecking } = useOnboardingCheck();
+
+  // Wait for hydration to complete before deciding anything
+  if (!_hasHydrated) {
+    return (
+      <div className="fixed inset-0 bg-[#0a0c10] flex items-center justify-center z-[9999]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Synchronizing Neural Link...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -200,6 +213,14 @@ const router = createBrowserRouter([
     element: (
       <AuthGuard>
         <EditorPage />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: '/quests/:questId/mcq',
+    element: (
+      <AuthGuard>
+        <MCQQuestPage />
       </AuthGuard>
     ),
   },

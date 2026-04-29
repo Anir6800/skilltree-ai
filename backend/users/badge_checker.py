@@ -51,8 +51,11 @@ class BadgeChecker:
             # Check each unearned badge
             for badge in unearned_badges:
                 if self._check_unlock_condition(user, badge, event_type, event_data):
-                    # Award badge
-                    user_badge = UserBadge.objects.create(user=user, badge=badge)
+                    # Award badge. get_or_create keeps concurrent completion
+                    # requests from creating duplicate unlock records.
+                    user_badge, created = UserBadge.objects.get_or_create(user=user, badge=badge)
+                    if not created:
+                        continue
                     new_badges.append(badge)
 
                     logger.info(f"Badge earned: {user.username} - {badge.name}")

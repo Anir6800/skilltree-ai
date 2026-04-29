@@ -5,7 +5,7 @@ from django.db.models import Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from datetime import timedelta
-from .models import User, XPLog
+from .models import User, XPLog, Badge, UserBadge
 from .serializers import DashboardSerializer
 from auth_app.serializers import UserProfileSerializer
 from quests.models import Quest
@@ -106,3 +106,31 @@ class DashboardView(APIView):
 
         serializer = DashboardSerializer(data, context={'request': request})
         return Response(serializer.data)
+
+
+class BadgeListView(APIView):
+    """
+    Returns all badge definitions with the current user's earned state.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        earned = {
+            ub.badge_id: ub
+            for ub in UserBadge.objects.filter(user=request.user).select_related('badge')
+        }
+        badges = []
+        for badge in Badge.objects.all().order_by('rarity', 'name'):
+            user_badge = earned.get(badge.id)
+            badges.append({
+                'id': badge.id,
+                'slug': badge.slug,
+                'name': badge.name,
+                'description': badge.description,
+                'icon_emoji': badge.icon_emoji,
+                'rarity': badge.rarity,
+                'unlocked': user_badge is not None,
+                'earned_at': user_badge.earned_at.isoformat() if user_badge else None,
+                'seen': user_badge.seen if user_badge else False,
+            })
+        return Response({'results': badges})

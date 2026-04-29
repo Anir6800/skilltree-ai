@@ -145,6 +145,25 @@ else:
         },
     }
 
+# [Caching]
+# SkillTree AI uses Redis for high-performance caching of leaderboards and rate limits.
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'IGNORE_EXCEPTIONS': True,
+            'SOCKET_TIMEOUT': 30,
+            'SOCKET_CONNECT_TIMEOUT': 30,
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 100,
+                'retry_on_timeout': True,
+            },
+        }
+    }
+}
+
 # [Celery]
 # Async task processing for AI evaluation and skill tree updates.
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', REDIS_URL)
@@ -153,6 +172,15 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = os.getenv('TIME_ZONE', 'UTC')
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'visibility_timeout': 3600,
+    'socket_timeout': 30,
+    'socket_connect_timeout': 30,
+}
+CELERY_TASK_SOFT_TIME_LIMIT = 1800  # 30 minutes
+CELERY_TASK_TIME_LIMIT = 1900
+
 
 # [REST Framework]
 # Global settings for SkillTree AI APIs.
@@ -226,8 +254,16 @@ CHROMA_PATH = os.getenv('CHROMA_PATH', './chroma_db')
 # LM Studio client tuning
 # How long (seconds) to cache the is_available() result.
 # Prevents hammering LM Studio with health-check requests on every AI call.
-LM_STUDIO_TIMEOUT = int(os.getenv('LM_STUDIO_TIMEOUT', 30))
+LM_STUDIO_TIMEOUT = int(os.getenv('LM_STUDIO_TIMEOUT', '300'))  # 5 minute timeout
+LM_STUDIO_MAX_RETRIES = int(os.getenv('LM_STUDIO_MAX_RETRIES', '2'))
+LM_STUDIO_RETRY_DELAY = int(os.getenv('LM_STUDIO_RETRY_DELAY', '5'))
 LM_STUDIO_AVAILABILITY_CACHE_TTL = float(os.getenv('LM_STUDIO_AVAILABILITY_CACHE_TTL', 30))
+
+# Execution Limits (configurable via environment)
+EXECUTOR_MAX_CODE_LENGTH = int(os.getenv('EXECUTOR_MAX_CODE_LENGTH', '50000'))  # 50KB
+EXECUTOR_MAX_TEST_CASES = int(os.getenv('EXECUTOR_MAX_TEST_CASES', '20'))
+EXECUTOR_MAX_EXECUTIONS_PER_MINUTE = int(os.getenv('EXECUTOR_MAX_EXECUTIONS_PER_MINUTE', '10'))
+EXECUTOR_MAX_EXECUTIONS_PER_HOUR = int(os.getenv('EXECUTOR_MAX_EXECUTIONS_PER_HOUR', '100'))
 
 EXECUTION_TIMEOUT = int(os.getenv('EXECUTION_TIMEOUT_SECONDS', 10))
 EXECUTION_MEMORY = int(os.getenv('EXECUTION_MEMORY_MB', 128))

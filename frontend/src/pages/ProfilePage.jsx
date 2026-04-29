@@ -12,6 +12,7 @@ import useAuthStore from '../store/authStore';
 import useSkillStore from '../store/skillStore';
 import useQuestStore from '../store/questStore';
 import * as authApi from '../api/authApi';
+import api from '../api/api';
 import { formatXP, formatDate } from '../utils/formatters';
 import { calculateXPProgress } from '../utils/xp';
 import { getLevelFromXP, getRankFromLevel } from '../constants';
@@ -33,12 +34,26 @@ function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [badges, setBadges] = useState([]);
 
   useEffect(() => {
     fetchUser();
     fetchSkills();
     fetchCompletedQuests();
+    api.get('/api/users/badges/')
+      .then((res) => setBadges(res.data.results || []))
+      .catch((err) => console.error('Failed to fetch badges:', err));
   }, [fetchUser, fetchSkills, fetchCompletedQuests]);
+
+  useEffect(() => {
+    const refreshBadges = () => {
+      api.get('/api/users/badges/')
+        .then((res) => setBadges(res.data.results || []))
+        .catch(() => {});
+    };
+    window.addEventListener('badgeEarned', refreshBadges);
+    return () => window.removeEventListener('badgeEarned', refreshBadges);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -411,20 +426,42 @@ function ProfilePage() {
 
             {activeTab === 'achievements' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {user?.achievements?.length > 0 ? (
-                  user.achievements.map((achievement, i) => (
+                {badges.length > 0 ? (
+                  badges.map((badge, i) => (
                     <motion.div
-                      key={achievement.id}
+                      key={badge.id}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: i * 0.05 }}
                       whileHover={{ scale: 1.05, y: -5 }}
-                      className="glass-panel rounded-2xl p-6 border border-primary/20 text-center hover:shadow-[0_0_30px_rgba(99,102,241,0.2)] transition-all"
+                      title={badge.description}
+                      className={cn(
+                        'glass-panel rounded-2xl p-6 border text-center transition-all relative overflow-hidden',
+                        badge.unlocked
+                          ? 'border-primary/25 hover:shadow-[0_0_30px_rgba(99,102,241,0.25)]'
+                          : 'border-white/10 opacity-55 grayscale'
+                      )}
                     >
-                      <div className="text-5xl mb-3">{achievement.icon || '🏆'}</div>
-                      <h4 className="font-bold text-white mb-1">{achievement.name}</h4>
-                      <p className="text-xs text-slate-400 mb-3">{achievement.description}</p>
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider">{formatDate(achievement.unlockedAt)}</span>
+                      {badge.unlocked && (
+                        <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-white/5 to-transparent" />
+                      )}
+                      <div className="text-5xl mb-3">{badge.icon_emoji || '🏆'}</div>
+                      <h4 className="font-bold text-white mb-1">{badge.name}</h4>
+                      <p className="text-xs text-slate-400 mb-3 line-clamp-2">{badge.description}</p>
+                      <span className={cn(
+                        'inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider',
+                        badge.rarity === 'legendary' && 'border-amber-400/40 text-amber-300 bg-amber-500/10',
+                        badge.rarity === 'epic' && 'border-purple-400/40 text-purple-300 bg-purple-500/10',
+                        badge.rarity === 'rare' && 'border-blue-400/40 text-blue-300 bg-blue-500/10',
+                        badge.rarity === 'common' && 'border-slate-400/30 text-slate-300 bg-slate-500/10'
+                      )}>
+                        {badge.unlocked ? badge.rarity : 'Locked'}
+                      </span>
+                      {badge.unlocked && badge.earned_at && (
+                        <div className="mt-3 text-[10px] text-slate-500 uppercase tracking-wider">
+                          {formatDate(badge.earned_at)}
+                        </div>
+                      )}
                     </motion.div>
                   ))
                 ) : (

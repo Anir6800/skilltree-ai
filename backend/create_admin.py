@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
 Script to create an admin user for SkillTree AI
+Reads credentials from environment variables (.env file)
 """
 import os
 import django
@@ -11,9 +12,10 @@ django.setup()
 from users.models import User
 from users.onboarding_models import OnboardingProfile
 
-username = "Anshi2007"
-email = "Anshi2007@gmail.com"
-password = "@Anshi2007@"
+# Read from environment variables
+username = os.getenv('ADMIN_USERNAME', 'Anshi2007')
+email = os.getenv('ADMIN_EMAIL', 'Anshi2007@gmail.com')
+password = os.getenv('ADMIN_PASSWORD', '@Anshi2007@')
 
 # Check if user already exists
 if User.objects.filter(username=username).exists():
@@ -54,7 +56,7 @@ print(f"""
 ╠════════════════════════════════════════════════════════════╣
 ║  Username: {username:<47} ║
 ║  Email:    {email:<47} ║
-║  Password: {password:<47} ║
+║  Password: {'*' * len(password):<47} ║
 ╠════════════════════════════════════════════════════════════╣
 ║  Access Admin Panel:                                       ║
 ║  1. Start backend: python manage.py runserver             ║

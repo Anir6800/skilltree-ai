@@ -382,3 +382,40 @@ def generate_tree_task(self, tree_id: str, topic: str, depth: int, user_id: int)
     except Exception as exc:
         logger.error(f"[TASK] Tree generation task failed: {str(exc)}", exc_info=True)
         raise self.retry(exc=exc, countdown=10)
+
+
+def generate_skill_map(topic, depth, user):
+    """
+    Helper function to generate a skill map for a specific user.
+    Used during full_reset to pre-warm demo accounts.
+    """
+    try:
+        # If user is an ID, get the object
+        if isinstance(user, int):
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.get(id=user)
+
+        # Create a placeholder GeneratedSkillTree
+        tree = GeneratedSkillTree.objects.create(
+            user=user,
+            topic=topic,
+            depth=depth,
+            status='generating'
+        )
+        
+        # Initialize the generator service
+        service = SkillTreeGeneratorService()
+        
+        # Execute generation synchronously for the reset command
+        result = service.execute_generation(
+            tree_id=tree.id,
+            topic=tree.topic,
+            depth=tree.depth,
+            user_id=user.id
+        )
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to generate skill map for user {user.id}: {e}")
+        raise

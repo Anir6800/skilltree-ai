@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.cache import cache
+from django.conf import settings
 from django.shortcuts import get_object_or_404
 
 from .serializers import ExecuteCodeSerializer, RunTestsSerializer
@@ -45,23 +46,23 @@ class ExecuteCodeView(APIView):
     POST /api/execute/
     """
     permission_classes = [IsAuthenticated]
-    
-    # SECURITY: Rate limiting and validation constants
-    MAX_CODE_LENGTH = 50000  # 50KB
-    MAX_EXECUTIONS_PER_MINUTE = 10
-    MAX_EXECUTIONS_PER_HOUR = 100
 
     def post(self, request):
         user = request.user
+        
+        # Use settings for limits
+        MAX_CODE_LENGTH = settings.EXECUTOR_MAX_CODE_LENGTH
+        MAX_EXECUTIONS_PER_MINUTE = settings.EXECUTOR_MAX_EXECUTIONS_PER_MINUTE
+        MAX_EXECUTIONS_PER_HOUR = settings.EXECUTOR_MAX_EXECUTIONS_PER_HOUR
         
         # SECURITY: Rate limiting (per minute)
         cache_key_minute = f'exec_rate_minute_{user.id}'
         executions_minute = cache.get(cache_key_minute, 0)
         
-        if executions_minute >= self.MAX_EXECUTIONS_PER_MINUTE:
+        if executions_minute >= MAX_EXECUTIONS_PER_MINUTE:
             return Response({
                 'error': 'Rate limit exceeded',
-                'message': f'You can only execute {self.MAX_EXECUTIONS_PER_MINUTE} times per minute.',
+                'message': f'You can only execute {MAX_EXECUTIONS_PER_MINUTE} times per minute.',
                 'retry_after': 60
             }, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
@@ -69,10 +70,10 @@ class ExecuteCodeView(APIView):
         cache_key_hour = f'exec_rate_hour_{user.id}'
         executions_hour = cache.get(cache_key_hour, 0)
         
-        if executions_hour >= self.MAX_EXECUTIONS_PER_HOUR:
+        if executions_hour >= MAX_EXECUTIONS_PER_HOUR:
             return Response({
                 'error': 'Rate limit exceeded',
-                'message': f'You can only execute {self.MAX_EXECUTIONS_PER_HOUR} times per hour.',
+                'message': f'You can only execute {MAX_EXECUTIONS_PER_HOUR} times per hour.',
                 'retry_after': 3600
             }, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
@@ -89,21 +90,33 @@ class ExecuteCodeView(APIView):
         stdin_input = serializer.validated_data.get('stdin', '')
         
         # SECURITY: Validate code length
-        if len(code) > self.MAX_CODE_LENGTH:
+        if len(code) > MAX_CODE_LENGTH:
             return Response({
                 'error': 'Code too long',
-                'message': f'Maximum code length is {self.MAX_CODE_LENGTH} characters.',
-                'max_length': self.MAX_CODE_LENGTH
+                'message': f'Maximum code length is {MAX_CODE_LENGTH} characters.',
+                'max_length': MAX_CODE_LENGTH
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Increment rate limit counters
         cache.set(cache_key_minute, executions_minute + 1, 60)  # 1 minute TTL
         cache.set(cache_key_hour, executions_hour + 1, 3600)  # 1 hour TTL
         
-        # Execute code
-        result = executor.execute(code, language, stdin_input)
-        
-        return Response(result, status=status.HTTP_200_OK)
+        try:
+            # Execute code with error handling
+            result = executor.execute(code, language, stdin_input)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Code execution error: {e}", exc_info=True)
+            
+            return Response({
+                'error': 'Code execution failed',
+                'message': str(e),
+                'output': '',
+                'stderr': str(e),
+                'exit_code': -1
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class RunTestsView(APIView):
@@ -113,24 +126,24 @@ class RunTestsView(APIView):
     Supports both real execution and AI simulation
     """
     permission_classes = [IsAuthenticated]
-    
-    # SECURITY: Rate limiting and validation constants
-    MAX_CODE_LENGTH = 50000  # 50KB
-    MAX_TEST_CASES = 20
-    MAX_EXECUTIONS_PER_MINUTE = 10
-    MAX_EXECUTIONS_PER_HOUR = 100
 
     def post(self, request):
         user = request.user
+        
+        # Use settings for limits
+        MAX_CODE_LENGTH = settings.EXECUTOR_MAX_CODE_LENGTH
+        MAX_TEST_CASES = settings.EXECUTOR_MAX_TEST_CASES
+        MAX_EXECUTIONS_PER_MINUTE = settings.EXECUTOR_MAX_EXECUTIONS_PER_MINUTE
+        MAX_EXECUTIONS_PER_HOUR = settings.EXECUTOR_MAX_EXECUTIONS_PER_HOUR
         
         # SECURITY: Rate limiting (per minute)
         cache_key_minute = f'test_rate_minute_{user.id}'
         executions_minute = cache.get(cache_key_minute, 0)
         
-        if executions_minute >= self.MAX_EXECUTIONS_PER_MINUTE:
+        if executions_minute >= MAX_EXECUTIONS_PER_MINUTE:
             return Response({
                 'error': 'Rate limit exceeded',
-                'message': f'You can only run tests {self.MAX_EXECUTIONS_PER_MINUTE} times per minute.',
+                'message': f'You can only run tests {MAX_EXECUTIONS_PER_MINUTE} times per minute.',
                 'retry_after': 60
             }, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
@@ -138,10 +151,10 @@ class RunTestsView(APIView):
         cache_key_hour = f'test_rate_hour_{user.id}'
         executions_hour = cache.get(cache_key_hour, 0)
         
-        if executions_hour >= self.MAX_EXECUTIONS_PER_HOUR:
+        if executions_hour >= MAX_EXECUTIONS_PER_HOUR:
             return Response({
                 'error': 'Rate limit exceeded',
-                'message': f'You can only run tests {self.MAX_EXECUTIONS_PER_HOUR} times per hour.',
+                'message': f'You can only run tests {MAX_EXECUTIONS_PER_HOUR} times per hour.',
                 'retry_after': 3600
             }, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
@@ -159,36 +172,64 @@ class RunTestsView(APIView):
         use_ai_simulation = serializer.validated_data.get('use_ai_simulation', False)
         
         # SECURITY: Validate code length
-        if len(code) > self.MAX_CODE_LENGTH:
+        if len(code) > MAX_CODE_LENGTH:
             return Response({
                 'error': 'Code too long',
-                'message': f'Maximum code length is {self.MAX_CODE_LENGTH} characters.',
-                'max_length': self.MAX_CODE_LENGTH
+                'message': f'Maximum code length is {MAX_CODE_LENGTH} characters.',
+                'max_length': MAX_CODE_LENGTH
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # SECURITY: Validate test case count
-        if len(test_cases) > self.MAX_TEST_CASES:
+        if len(test_cases) > MAX_TEST_CASES:
             return Response({
                 'error': 'Too many test cases',
-                'message': f'Maximum {self.MAX_TEST_CASES} test cases allowed.',
-                'max_test_cases': self.MAX_TEST_CASES
+                'message': f'Maximum {MAX_TEST_CASES} test cases allowed.',
+                'max_test_cases': MAX_TEST_CASES
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Increment rate limit counters
         cache.set(cache_key_minute, executions_minute + 1, 60)  # 1 minute TTL
         cache.set(cache_key_hour, executions_hour + 1, 3600)  # 1 hour TTL
-        
-        # Choose execution method
-        if use_ai_simulation:
-            # Use AI simulation
-            result = ai_executor.simulate_execution(code, language, test_cases)
-        else:
-            # Use real Docker execution
-            result = executor.run_test_cases(code, language, test_cases)
-            # Add is_simulated flag for consistency
-            result['is_simulated'] = False
-        
-        return Response(result, status=status.HTTP_200_OK)
+
+        try:
+            # Choose execution method with timeout protection
+            if use_ai_simulation:
+                # Use AI simulation
+                result = ai_executor.simulate_execution(code, language, test_cases)
+            else:
+                # Use real Docker execution with timeout
+                try:
+                    result = executor.run_test_cases(code, language, test_cases)
+                    # Add is_simulated flag for consistency
+                    result['is_simulated'] = False
+                except Exception as e:
+                    # If Docker fails, fall back to AI simulation
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Docker execution failed: {e}, falling back to AI simulation")
+                    
+                    if ai_executor.is_available():
+                        result = ai_executor.simulate_execution(code, language, test_cases)
+                        result['is_simulated'] = True
+                        result['warning'] = 'Docker unavailable, using AI simulation'
+                    else:
+                        return Response({
+                            'error': 'Execution service unavailable',
+                            'message': 'Both Docker and AI simulation are unavailable',
+                            'details': str(e)
+                        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
+            return Response(result, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Test execution error: {e}", exc_info=True)
+            
+            return Response({
+                'error': 'Test execution failed',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SubmissionStatusView(APIView):
@@ -231,6 +272,17 @@ class SubmissionStatusView(APIView):
             'execution_result': submission.execution_result,
             'ai_feedback': submission.ai_feedback,
             'ai_detection_score': submission.ai_detection_score,
+            'quest': {
+                'id': submission.quest.id,
+                'title': submission.quest.title,
+                'type': submission.quest.type,
+                'xp_reward': submission.quest.xp_reward,
+                'difficulty_multiplier': submission.quest.difficulty_multiplier,
+                'skill': {
+                    'id': submission.quest.skill.id,
+                    'title': submission.quest.skill.title,
+                },
+            },
             'created_at': submission.created_at.isoformat(),
         })
 
@@ -250,6 +302,19 @@ class PipelineStatusView(APIView):
 
     def get(self, request, task_id):
         from celery.result import AsyncResult
+        from quests.models import QuestSubmission
+        
+        # SECURITY: Verify user owns the submission associated with this task
+        try:
+            submission = QuestSubmission.objects.get(
+                celery_task_id=task_id,
+                user=request.user
+            )
+        except QuestSubmission.DoesNotExist:
+            return Response(
+                {'error': 'Task not found or access denied'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         
         # Get Celery task result
         task_result = AsyncResult(task_id)
@@ -324,6 +389,19 @@ class StartPipelineView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         
+        # SECURITY: Validate submission state - prevent duplicate starts
+        if submission.status == 'running':
+            return Response(
+                {'error': 'Submission is already being evaluated'},
+                status=status.HTTP_409_CONFLICT
+            )
+        
+        if submission.status in ['passed', 'failed', 'flagged']:
+            return Response(
+                {'error': 'Submission has already been evaluated'},
+                status=status.HTTP_409_CONFLICT
+            )
+        
         # Update submission status to running
         submission.status = 'running'
         submission.save(update_fields=['status'])
@@ -339,7 +417,7 @@ class StartPipelineView(APIView):
             }, status=status.HTTP_202_ACCEPTED)
             
         except Exception as e:
-            submission.status = 'failed'
+            submission.status = 'pending'
             submission.save(update_fields=['status'])
             
             return Response(

@@ -7,12 +7,13 @@ class QuestListSerializer(serializers.ModelSerializer):
     """
     status = serializers.SerializerMethodField()
     skill_name = serializers.CharField(source='skill.title', read_only=True)
+    skill_id = serializers.IntegerField(source='skill.id', read_only=True)
 
     class Meta:
         model = Quest
         fields = [
             'id', 'title', 'type', 'description', 'xp_reward', 
-            'difficulty_multiplier', 'estimated_minutes', 'status', 'skill_name'
+            'difficulty_multiplier', 'estimated_minutes', 'status', 'skill_name', 'skill_id'
         ]
 
     def get_status(self, obj):
@@ -55,13 +56,14 @@ class QuestDetailSerializer(serializers.ModelSerializer):
     test_cases = serializers.SerializerMethodField()
     is_locked = serializers.SerializerMethodField()
     skill_name = serializers.CharField(source='skill.title', read_only=True)
+    skill_id = serializers.IntegerField(source='skill.id', read_only=True)
 
     class Meta:
         model = Quest
         fields = [
             'id', 'title', 'description', 'type', 'starter_code', 
             'test_cases', 'xp_reward', 'difficulty_multiplier', 
-            'estimated_minutes', 'status', 'skill_name', 'is_locked'
+            'estimated_minutes', 'status', 'skill_name', 'skill_id', 'is_locked'
         ]
 
     def get_is_locked(self, obj):
@@ -75,7 +77,11 @@ class QuestDetailSerializer(serializers.ModelSerializer):
             progress = SkillProgress.objects.get(user=user, skill=obj.skill)
             return progress.status == 'locked'
         except SkillProgress.DoesNotExist:
-            return True
+            unmet_prereqs = obj.skill.prerequisites.exclude(
+                user_progress__user=user,
+                user_progress__status='completed',
+            ).exists()
+            return unmet_prereqs or user.xp < obj.skill.xp_required_to_unlock
 
     def get_status(self, obj):
         request = self.context.get('request')

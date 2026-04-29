@@ -29,6 +29,7 @@ const BadgeUnlockOverlay = ({
 }) => {
   const [particles, setParticles] = useState([]);
   const [showContent, setShowContent] = useState(false);
+  const [animatedXP, setAnimatedXP] = useState(0);
 
   useEffect(() => {
     if (!isOpen) {
@@ -45,15 +46,33 @@ const BadgeUnlockOverlay = ({
     }));
 
     setParticles(newParticles);
+    setAnimatedXP(0);
+    const reward = Number(badge?.xp_awarded || badge?.xpAwarded || 0);
+    if (reward > 0) {
+      let current = 0;
+      const step = Math.max(1, Math.ceil(reward / 28));
+      const counter = setInterval(() => {
+        current += step;
+        if (current >= reward) {
+          setAnimatedXP(reward);
+          clearInterval(counter);
+        } else {
+          setAnimatedXP(current);
+        }
+      }, 18);
+      setTimeout(() => clearInterval(counter), 1200);
+    }
 
     // Show content after slight delay
     const timer = setTimeout(() => setShowContent(true), 300);
 
     return () => clearTimeout(timer);
-  }, [isOpen]);
+  }, [isOpen, badge]);
 
   const rarityColor = RARITY_COLORS[badge?.rarity] || RARITY_COLORS.common;
   const rarityGlow = RARITY_GLOW[badge?.rarity] || RARITY_GLOW.common;
+  const badgeName = badge?.name || badge?.badge_name || 'Badge';
+  const badgeDescription = badge?.description || '';
 
   return (
     <AnimatePresence>
@@ -138,7 +157,7 @@ const BadgeUnlockOverlay = ({
                   ease: 'easeInOut',
                 }}
               >
-                {badge.icon_emoji}
+                {badge.icon_emoji || badge.badge_icon}
               </motion.div>
 
               {/* Glow effect */}
@@ -168,15 +187,25 @@ const BadgeUnlockOverlay = ({
                 >
                   <h1 className="badge-title">New Badge Unlocked!</h1>
 
-                  <h2 className="badge-name">{badge.name}</h2>
+                  <h2 className="badge-name">{badgeName}</h2>
 
-                  <p className="badge-description">{badge.description}</p>
+                  <p className="badge-description">{badgeDescription}</p>
 
                   <div className="badge-rarity">
                     <span className={`rarity-badge rarity-${badge.rarity}`}>
                       {badge.rarity.toUpperCase()}
                     </span>
                   </div>
+
+                  {Number(badge?.xp_awarded || badge?.xpAwarded || 0) > 0 && (
+                    <motion.div
+                      className="mt-4 text-2xl font-black text-amber-300 drop-shadow-[0_0_16px_rgba(245,158,11,0.8)]"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      +{animatedXP} XP
+                    </motion.div>
+                  )}
 
                   <motion.button
                     className="badge-close-btn"

@@ -23,7 +23,7 @@ function QuestDetailModal({ isOpen, onClose, quest }) {
 
   const handleStart = () => {
     onClose();
-    navigate(`/editor/${quest.id}`);
+    navigate(quest.type === 'mcq' ? `/quests/${quest.id}/mcq` : `/editor/${quest.id}`);
   };
 
   return (

@@ -1,6 +1,7 @@
 /**
  * SkillTree AI - Skill Tree Page
  * Interactive skill tree visualization with React Flow
+ * Displays depth hierarchy and manages skill progression
  * @module pages/SkillTreePage
  */
 
@@ -16,7 +17,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { Sparkles, Filter, Loader2, AlertCircle, Wand2 } from 'lucide-react';
+import { Sparkles, Filter, Loader2, AlertCircle, Wand2, Layers } from 'lucide-react';
 import { SKILL_STATUS } from '../constants';
 import api from '../api/api';
 import { cn } from '../utils/cn';
@@ -89,6 +90,7 @@ function SkillTreePage() {
   const [error, setError] = useState(null);
   const [rawSkills, setRawSkills] = useState([]);
   const [showGenerator, setShowGenerator] = useState(false);
+  const [treeDepth, setTreeDepth] = useState(0);  // NEW: Track tree depth
 
   /**
    * Fetch skill tree data from API
@@ -107,6 +109,11 @@ function SkillTreePage() {
       }
 
       setRawSkills(data.nodes);
+      
+      // NEW: Extract tree depth from response
+      if (data.depth) {
+        setTreeDepth(data.depth);
+      }
 
       // Transform API data to React Flow format
       const flowNodes = data.nodes.map((skill) => ({
@@ -114,6 +121,7 @@ function SkillTreePage() {
         type: 'skillNode',
         data: {
           ...skill,
+          tree_depth: skill.tree_depth || 0,  // NEW: Include depth in node data
           onClick: (skillData) => setSelectedSkill(skillData),
         },
         position: { x: 0, y: 0 },
@@ -274,7 +282,7 @@ function SkillTreePage() {
                   Skill Tree
                 </h1>
                 <p className="text-xs text-slate-400 uppercase tracking-wider">
-                  Neural Pathway Visualization
+                  {treeDepth > 0 ? `Depth Level ${treeDepth}` : 'Neural Pathway Visualization'}
                 </p>
               </div>
             </div>

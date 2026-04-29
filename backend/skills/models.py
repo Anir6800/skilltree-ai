@@ -19,6 +19,7 @@ class GeneratedSkillTree(models.Model):
     is_public = models.BooleanField(default=False)
     raw_ai_response = models.JSONField(default=dict)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='generating')
+    depth = models.IntegerField(default=3, help_text='Tree depth (1-5) used during generation')  # NEW
     skills_created = models.ManyToManyField('Skill', related_name='generated_from_trees', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -50,6 +51,7 @@ class Skill(models.Model):
     # Allow dynamic categories for AI-generated trees (e.g., custom_machine_learning)
     category = models.CharField(max_length=50)
     difficulty = models.IntegerField(default=1)  # 1-5
+    tree_depth = models.IntegerField(default=0, help_text='Depth level in the generated tree (0=root)')  # NEW
     prerequisites = models.ManyToManyField(
         'self', 
         symmetrical=False, 
@@ -88,6 +90,9 @@ class SkillProgress(models.Model):
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='user_progress')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='locked')
     completed_at = models.DateTimeField(null=True, blank=True)
+    quest_completion_count = models.IntegerField(default=0, help_text='Number of quests completed for this skill')  # NEW
+    time_spent_minutes = models.IntegerField(default=0, help_text='Total time spent on this skill')  # NEW
+    attempts_count = models.IntegerField(default=0, help_text='Number of quest attempts for this skill')  # NEW
 
     class Meta:
         indexes = [

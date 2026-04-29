@@ -276,3 +276,42 @@ class SubmissionReviewView(APIView):
                 'xp_revoked': xp_earned,
                 'admin_note': admin_note,
             }, status=status.HTTP_200_OK)
+
+
+class SubmissionLogView(APIView):
+    """
+    GET /api/ai-detection/submissions/{id}/log/
+    Authenticated owner only. Retrieve the latest detection log for a submission.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, submission_id):
+        submission = get_object_or_404(QuestSubmission, id=submission_id)
+        
+        # Ownership check
+        if submission.user != request.user and not request.user.is_staff:
+            return Response(
+                {"error": "Access denied"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        log = DetectionLog.objects.filter(submission=submission).first()
+        if not log:
+            return Response(
+                {
+                    "status": "pending",
+                    "message": "AI detection is still in progress or evaluation failed."
+                },
+                status=status.HTTP_200_OK
+            )
+            
+        return Response({
+            'submission_id': submission.id,
+            'embedding_score': log.embedding_score,
+            'llm_score': log.llm_score,
+            'heuristic_score': log.heuristic_score,
+            'final_score': log.final_score,
+            'llm_reasoning': log.llm_reasoning,
+            'analyzed_at': log.analyzed_at.isoformat(),
+        }, status=status.HTTP_200_OK)
+

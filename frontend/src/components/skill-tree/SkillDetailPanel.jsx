@@ -1,11 +1,11 @@
 /**
  * SkillTree AI - Skill Detail Sidebar Panel
- * Glassmorphic sidebar with skill details
+ * Glassmorphic sidebar with skill details, depth indicator, and quest navigation
  * @module components/skill-tree/SkillDetailPanel
  */
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap, CheckCircle2, Lock, ArrowRight, Target } from 'lucide-react';
+import { X, Zap, CheckCircle2, Lock, ArrowRight, Target, Layers } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { SKILL_STATUS } from '../../constants';
 import { cn } from '../../utils/cn';
@@ -44,6 +44,18 @@ const DifficultyIndicator = ({ difficulty }) => {
 };
 
 /**
+ * Depth level indicator
+ */
+const DepthIndicator = ({ depth }) => {
+  return (
+    <div className="flex items-center gap-2">
+      <Layers size={14} className="text-slate-400" />
+      <span className="text-xs font-bold text-slate-300">Level {depth}</span>
+    </div>
+  );
+};
+
+/**
  * Skill Detail Panel Component
  */
 const SkillDetailPanel = ({ skill, onClose, onStartSkill }) => {
@@ -70,6 +82,11 @@ const SkillDetailPanel = ({ skill, onClose, onStartSkill }) => {
 
   const handleViewQuests = () => {
     navigate(`/quests?skill_id=${skill.id}`);
+  };
+
+  const handleStartQuest = () => {
+    // Navigate to quest editor with this skill's first quest
+    navigate(`/editor?skill_id=${skill.id}`);
   };
 
   return (
@@ -138,8 +155,16 @@ const SkillDetailPanel = ({ skill, onClose, onStartSkill }) => {
                 <DifficultyIndicator difficulty={skill.difficulty || 1} />
               </div>
 
-              {/* XP Required */}
+              {/* Depth Level */}
               <div className="glass-card p-4 rounded-xl">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                  Tree Depth
+                </div>
+                <DepthIndicator depth={skill.tree_depth || 0} />
+              </div>
+
+              {/* XP Required */}
+              <div className="glass-card p-4 rounded-xl col-span-2">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
                   XP Required
                 </div>
@@ -240,16 +265,28 @@ const SkillDetailPanel = ({ skill, onClose, onStartSkill }) => {
             )}
 
             {isInProgress && (
-              <button
-                onClick={handleViewQuests}
-                className="auth-btn-primary group flex items-center justify-center space-x-2"
-              >
-                <span>Continue Learning</span>
-                <ArrowRight
-                  size={16}
-                  className="group-hover:translate-x-1 transition-transform"
-                />
-              </button>
+              <>
+                <button
+                  onClick={handleStartQuest}
+                  className="auth-btn-primary group flex items-center justify-center space-x-2"
+                >
+                  <span>Start Quest</span>
+                  <ArrowRight
+                    size={16}
+                    className="group-hover:translate-x-1 transition-transform"
+                  />
+                </button>
+                <button
+                  onClick={handleViewQuests}
+                  className="w-full py-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-400 hover:bg-white/10 hover:text-white transition-all duration-300 group"
+                >
+                  View All Quests
+                  <ArrowRight
+                    size={14}
+                    className="group-hover:translate-x-1 transition-transform"
+                  />
+                </button>
+              </>
             )}
 
             {isCompleted && (
@@ -288,16 +325,18 @@ const SkillDetailPanel = ({ skill, onClose, onStartSkill }) => {
               </div>
             )}
 
-            <button
-              onClick={handleViewQuests}
-              className="w-full py-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-400 hover:bg-white/10 hover:text-white transition-all duration-300 group"
-            >
-              View All Quests
-              <ArrowRight
-                size={14}
-                className="group-hover:translate-x-1 transition-transform"
-              />
-            </button>
+            {!isAvailable && !isInProgress && !isCompleted && !isLocked && (
+              <button
+                onClick={handleViewQuests}
+                className="w-full py-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-400 hover:bg-white/10 hover:text-white transition-all duration-300 group"
+              >
+                View All Quests
+                <ArrowRight
+                  size={14}
+                  className="group-hover:translate-x-1 transition-transform"
+                />
+              </button>
+            )}
           </div>
         </div>
       </motion.div>

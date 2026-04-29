@@ -24,6 +24,12 @@ class Quest(models.Model):
     xp_reward = models.IntegerField(default=0)
     estimated_minutes = models.IntegerField(default=15)
     difficulty_multiplier = models.FloatField(default=1.0)
+    is_stub = models.BooleanField(default=False, help_text='True if quest is auto-generated stub awaiting content')  # NEW
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['is_stub', 'skill'], name='quest_stub_skill_idx'),  # NEW
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.type})"
@@ -60,12 +66,14 @@ class QuestSubmission(models.Model):
     ai_feedback = models.JSONField(default=dict)  # {score, summary, pros, cons, suggestions}
     ai_detection_score = models.FloatField(default=0.0)
     explanation = models.TextField(blank=True, default='')
+    celery_task_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)  # NEW: For ownership verification
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['user', 'quest']),
+            models.Index(fields=['celery_task_id']),  # NEW: For fast lookup
         ]
 
     def __str__(self):

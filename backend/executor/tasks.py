@@ -112,10 +112,12 @@ def evaluate_submission(self, submission_id):
         ai_feedback = {}
         try:
             from ai_evaluation.services import AIEvaluator
+            logger.info(f"[TASK] Starting AI evaluation for submission {submission_id}")
             evaluator = AIEvaluator()
             ai_feedback = evaluator.evaluate(submission)
+            logger.info(f"[TASK] AI evaluation complete: score={ai_feedback.get('score')}")
         except Exception as e:
-            logger.warning(f"AI evaluation skipped for submission {submission_id}: {e}")
+            logger.warning(f"AI evaluation skipped for submission {submission_id}: {e}", exc_info=True)
 
         submission.ai_feedback = ai_feedback
 
@@ -142,26 +144,49 @@ def evaluate_submission(self, submission_id):
         submission.save()
 
         # 5. Award XP if passed (only first time)
+        completion_meta = {}
         if submission.status == 'passed':
             already_awarded = QuestSubmission.objects.filter(
                 user=user, quest=quest, status='passed'
             ).exclude(id=submission_id).exists()
 
             if not already_awarded:
-                xp_earned = int(quest.xp_reward * quest.difficulty_multiplier)
-                user.xp += xp_earned
-                user.save(update_fields=['xp', 'level'])
+                from skills.services import award_xp
+                from users.badge_checker import badge_checker
 
-                # Log XP
-                from users.models import XPLog
-                XPLog.objects.create(
-                    user=user,
-                    amount=xp_earned,
-                    source=f"Quest: {quest.title}"
+                completion_meta = award_xp(user, quest)
+                new_badges = badge_checker.check_badges(
+                    user,
+                    'quest_passed',
+                    {
+                        'event_type': 'quest_passed',
+                        'quest_id': quest.id,
+                        'submission_id': submission.id,
+                        'solve_time_ms': submission.execution_result.get('time_ms', 0),
+                    }
                 )
-
-                # Update streak
-                _update_streak(user)
+                completion_meta['new_badges'] = [
+                    {
+                        'id': badge.id,
+                        'slug': badge.slug,
+                        'name': badge.name,
+                        'description': badge.description,
+                        'icon_emoji': badge.icon_emoji,
+                        'rarity': badge.rarity,
+                    }
+                    for badge in new_badges
+                ]
+                submission.execution_result = {
+                    **(submission.execution_result or {}),
+                    'xp_awarded': completion_meta.get('xp_gained', 0),
+                    'new_total_xp': completion_meta.get('new_total_xp'),
+                    'new_level': completion_meta.get('new_level'),
+                    'streak_days': completion_meta.get('streak_days'),
+                    'skill_completed': completion_meta.get('skill_completed', False),
+                    'unlocked_skills': completion_meta.get('unlocked_skills', []),
+                    'new_badges': completion_meta.get('new_badges', []),
+                }
+                submission.save(update_fields=['execution_result'])
 
                 # Update leaderboard
                 try:

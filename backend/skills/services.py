@@ -88,6 +88,47 @@ class SkillUnlockService:
         return unlockable_skills
 
     @staticmethod
+    def resolve_unlocks_sync(user):
+        """
+        Resolve unlockable skills immediately and return newly unlocked skills.
+        This is used by quest completion responses so the frontend can refresh
+        and animate progression without waiting for Celery.
+        """
+        if not user or not user.id:
+            return []
+
+        unlockable_skills = SkillUnlockService.get_unlockable_skills(user)
+        if not unlockable_skills:
+            return []
+
+        existing_progress = {
+            sp.skill_id: sp
+            for sp in SkillProgress.objects.filter(
+                user=user,
+                skill__in=unlockable_skills
+            ).select_related('skill')
+        }
+
+        newly_unlocked = []
+        with transaction.atomic():
+            for skill in unlockable_skills:
+                progress = existing_progress.get(skill.id)
+                if progress:
+                    if progress.status == 'locked':
+                        progress.status = 'available'
+                        progress.save(update_fields=['status'])
+                        newly_unlocked.append(skill)
+                else:
+                    SkillProgress.objects.create(
+                        user=user,
+                        skill=skill,
+                        status='available'
+                    )
+                    newly_unlocked.append(skill)
+
+        return newly_unlocked
+
+    @staticmethod
     def check_skill_completion(user, skill):
         """
         Check if all quests for a skill are completed and update skill status.
@@ -128,9 +169,6 @@ class SkillUnlockService:
                     progress.status = 'completed'
                     progress.completed_at = timezone.now()
                     progress.save()
-                    
-                    # Trigger unlock resolution for dependent skills
-                    resolve_unlocks_for_user.delay(user.id)
                     
                     return True
 
@@ -286,15 +324,25 @@ def award_xp(user, quest):
         
         # 5. Check Skill Completion
         skill = quest.skill
-        SkillUnlockService.check_skill_completion(user, skill)
+        skill_completed = SkillUnlockService.check_skill_completion(user, skill)
         
-        # 6. Trigger unlock resolution (async)
-        resolve_unlocks_for_user.delay(user.id)
+        # 6. Resolve unlocks synchronously for immediate UI updates.
+        unlocked_skills = SkillUnlockService.resolve_unlocks_sync(user)
+
+        # Keep async resolver as a repair pass if Celery is available.
+        try:
+            resolve_unlocks_for_user.delay(user.id)
+        except Exception:
+            pass
 
         return {
             "xp_gained": xp_gained,
             "new_total_xp": user.xp,
             "new_level": user.level,
-            "streak_days": user.streak_days
+            "streak_days": user.streak_days,
+            "skill_completed": skill_completed,
+            "unlocked_skills": [
+                {"id": skill.id, "title": skill.title, "description": skill.description}
+                for skill in unlocked_skills
+            ],
         }
-

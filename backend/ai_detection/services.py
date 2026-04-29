@@ -9,6 +9,7 @@ import logging
 import re
 import ast
 import asyncio
+import threading
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 from django.conf import settings
@@ -49,6 +50,38 @@ class AIDetector:
     def __init__(self):
         self.chroma = chroma_client
         self.lm = lm_client
+    
+    def detect_sync(self, submission: QuestSubmission) -> DetectionResult:
+        """
+        Synchronous wrapper for async detect() method.
+        Safe to call from Celery tasks.
+        
+        Args:
+            submission: QuestSubmission instance to analyze
+            
+        Returns:
+            DetectionResult with scores and reasoning
+        """
+        try:
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(self.detect(submission))
+            return result
+        except Exception as e:
+            logger.error(f"AI detection failed: {e}", exc_info=True)
+            return DetectionResult(
+                final_score=0.0,
+                embedding_score=0.0,
+                llm_score=0.0,
+                heuristic_score=0.0,
+                is_flagged=False,
+                reasoning=f"Detection error: {str(e)[:100]}",
+                key_signals=[],
+                llm_reasoning={}
+            )
+        finally:
+            loop.close()
     
     async def detect(self, submission: QuestSubmission) -> DetectionResult:
         """

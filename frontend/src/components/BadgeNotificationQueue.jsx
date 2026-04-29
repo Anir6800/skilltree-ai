@@ -14,6 +14,17 @@ const BadgeNotificationQueue = () => {
   const [currentBadge, setCurrentBadge] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  useEffect(() => {
+    const handleImmediateBadge = (event) => {
+      if (!focusMode) {
+        setCurrentBadge(event.detail);
+        setIsPlaying(true);
+      }
+    };
+    window.addEventListener('badgeEarned', handleImmediateBadge);
+    return () => window.removeEventListener('badgeEarned', handleImmediateBadge);
+  }, [focusMode]);
+
   // Process badge queue
   useEffect(() => {
     if (isPlaying || !focusMode) {

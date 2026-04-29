@@ -18,6 +18,23 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+.result-confetti-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.result-confetti-piece {
+  position: absolute;
+  top: -24px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  box-shadow: 0 0 14px currentColor;
+}
+
 .result-modal-card {
   position: relative;
   width: 90%;
@@ -31,6 +48,7 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   color: #ffffff;
   overflow: hidden;
+  z-index: 2;
 }
 
 /* Status-specific gradients */
@@ -222,6 +240,25 @@
 .xp-section {
   margin: 24px 0;
   text-align: center;
+  position: relative;
+}
+
+.xp-particles-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+}
+
+.xp-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 24px;
+  transform: translate(-50%, -50%);
 }
 
 .xp-counter {
@@ -234,6 +271,8 @@
   border: 2px solid rgba(251, 191, 36, 0.3);
   font-size: 24px;
   font-weight: 700;
+  position: relative;
+  z-index: 10;
 }
 
 .xp-icon {
@@ -260,6 +299,119 @@
   color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+/* Celebration burst animation */
+.celebration-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100px;
+  height: 100px;
+  pointer-events: none;
+}
+
+.celebration-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 24px;
+  transform: translate(-50%, -50%);
+}
+
+/* Skill tree unlock animation */
+.unlock-animation-container {
+  margin: 24px 0;
+  padding: 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%);
+  border: 2px solid rgba(168, 85, 247, 0.3);
+}
+
+.unlock-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #c084fc;
+}
+
+.unlock-icon {
+  font-size: 24px;
+}
+
+.unlock-text {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.unlocked-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.unlocked-stage-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  transition: all 0.3s ease;
+}
+
+.unlocked-stage-item:hover {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.3);
+  transform: translateX(4px);
+}
+
+.stage-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(168, 85, 247, 0.1) 100%);
+  border: 2px solid rgba(168, 85, 247, 0.5);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.stage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stage-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #c084fc;
+}
+
+.stage-description {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Slide out animation for next quest transition */
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
 }
 
 /* Streak badge */

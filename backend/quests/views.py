@@ -84,7 +84,7 @@ class QuestListView(generics.ListAPIView):
 
 class QuestDetailView(generics.RetrieveAPIView):
     """
-    Retrieve full quest details.
+    Retrieve full quest details with breadcrumb navigation.
     Test cases only include input (expected_output is hidden for security).
     """
     queryset = Quest.objects.select_related('skill').all()
@@ -94,12 +94,32 @@ class QuestDetailView(generics.RetrieveAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+        
+        # NEW: Add breadcrumb data
+        skill = instance.skill
+        breadcrumb = {
+            'skill': {
+                'id': skill.id,
+                'title': skill.title,
+                'category': skill.category,
+                'tree_depth': skill.tree_depth,
+            },
+            'quest': {
+                'id': instance.id,
+                'title': instance.title,
+                'type': instance.type,
+            }
+        }
+        
+        response_data = serializer.data
+        response_data['breadcrumb'] = breadcrumb
+        
+        return Response(response_data)
 
 
 class QuestSubmitView(APIView):
     """
-    Handles quest code submission.
+    Handles quest code submission with skill lock enforcement.
     Creates a pending submission and returns immediately.
     Execution is handled asynchronously via Celery (Phase 9).
     """
@@ -110,6 +130,10 @@ class QuestSubmitView(APIView):
         quest = get_object_or_404(Quest, pk=pk)
         user = request.user
         
+        # NEW: Improved skill lock enforcement with detailed logging
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # SECURITY: Check if skill is unlocked
         # Exception: multiplayer match submissions bypass the skill lock check
         # because the match creator already validated quest access
@@ -117,13 +141,14 @@ class QuestSubmitView(APIView):
         
         if not is_match_submission:
             skill = quest.skill
-            import logging
-            logger = logging.getLogger(__name__)
+            logger.info(f"[SUBMIT] Checking skill status for user {user.id}, skill {skill.id}")
             
             try:
                 skill_progress = SkillProgress.objects.get(user=user, skill=skill)
+                logger.info(f"[SUBMIT] Skill progress found: status={skill_progress.status}")
+                
                 if skill_progress.status == 'locked':
-                    logger.warning(f"User {user.id} attempted Quest {pk} but skill {skill.id} is locked.")
+                    logger.warning(f"[SUBMIT] User {user.id} attempted Quest {pk} but skill {skill.id} is locked.")
                     return Response({
                         "error": "Quest is locked",
                         "message": f"You must unlock the '{skill.title}' skill first.",
@@ -132,14 +157,20 @@ class QuestSubmitView(APIView):
                         "status": "locked"
                     }, status=status.HTTP_403_FORBIDDEN)
             except SkillProgress.DoesNotExist:
-                logger.warning(f"User {user.id} attempted Quest {pk} but no SkillProgress exists for skill {skill.id}.")
-                return Response({
-                    "error": "Skill not started",
-                    "message": f"You must start the '{skill.title}' skill first.",
-                    "skill_required": skill.title,
-                    "skill_id": skill.id,
-                    "status": "not_started"
-                }, status=status.HTTP_403_FORBIDDEN)
+                unmet_prereqs = skill.prerequisites.exclude(
+                    user_progress__user=user,
+                    user_progress__status='completed',
+                ).exists()
+                if unmet_prereqs or user.xp < skill.xp_required_to_unlock:
+                    logger.warning(f"[SUBMIT] User {user.id} attempted Quest {pk} but skill {skill.id} is unavailable.")
+                    return Response({
+                        "error": "Skill not started",
+                        "message": f"You must unlock the '{skill.title}' skill first.",
+                        "skill_required": skill.title,
+                        "skill_id": skill.id,
+                        "status": "not_started"
+                    }, status=status.HTTP_403_FORBIDDEN)
+                SkillProgress.objects.create(user=user, skill=skill, status='in_progress')
         
         # SECURITY: Check if user already passed this quest
         existing_passed = QuestSubmission.objects.filter(
@@ -154,6 +185,9 @@ class QuestSubmitView(APIView):
                 "message": "You have already completed this quest. XP has been awarded."
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        if quest.type == 'mcq':
+            return self._handle_mcq_submission(request, quest)
+
         # Validate input data
         code = request.data.get('code', '').strip()
         language = request.data.get('language', '').strip()
@@ -209,6 +243,91 @@ class QuestSubmitView(APIView):
             "submission_id": submission.id,
             "status": submission.status,
             "message": "Submission received and evaluated." if not celery_dispatched else "Submission queued for evaluation.",
+        }, status=status.HTTP_201_CREATED)
+
+    def _handle_mcq_submission(self, request, quest):
+        user = request.user
+        answer = str(request.data.get('answer', '')).strip()
+        if not answer:
+            return Response({"error": "Answer is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        expected = ''
+        if quest.test_cases:
+            expected = str(quest.test_cases[0].get('expected_output', quest.test_cases[0].get('expected', ''))).strip()
+        if not expected:
+            expected = str(request.data.get('expected_answer', '')).strip()
+
+        if not expected:
+            return Response({"error": "MCQ answer key is missing for this quest."}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_correct = answer.casefold() == expected.casefold()
+        submission = QuestSubmission.objects.create(
+            user=user,
+            quest=quest,
+            code=answer,
+            language='python',
+            status='passed' if is_correct else 'failed',
+            execution_result={
+                'output': 'Correct answer.' if is_correct else 'Incorrect answer.',
+                'tests_passed': 1 if is_correct else 0,
+                'tests_total': 1,
+                'test_results': [{
+                    'input': answer,
+                    'expected': expected,
+                    'actual': answer,
+                    'status': 'passed' if is_correct else 'failed',
+                }],
+                'time_ms': 0,
+            },
+        )
+
+        if is_correct:
+            already_awarded = QuestSubmission.objects.filter(
+                user=user, quest=quest, status='passed'
+            ).exclude(id=submission.id).exists()
+            if not already_awarded:
+                from skills.services import award_xp
+                from users.badge_checker import badge_checker
+
+                completion_meta = award_xp(user, quest)
+                new_badges = badge_checker.check_badges(
+                    user,
+                    'quest_passed',
+                    {
+                        'event_type': 'quest_passed',
+                        'quest_id': quest.id,
+                        'submission_id': submission.id,
+                        'solve_time_ms': 0,
+                    }
+                )
+                submission.execution_result = {
+                    **submission.execution_result,
+                    'xp_awarded': completion_meta.get('xp_gained', 0),
+                    'new_total_xp': completion_meta.get('new_total_xp'),
+                    'new_level': completion_meta.get('new_level'),
+                    'streak_days': completion_meta.get('streak_days'),
+                    'skill_completed': completion_meta.get('skill_completed', False),
+                    'unlocked_skills': completion_meta.get('unlocked_skills', []),
+                    'new_badges': [
+                        {
+                            'id': badge.id,
+                            'slug': badge.slug,
+                            'name': badge.name,
+                            'description': badge.description,
+                            'icon_emoji': badge.icon_emoji,
+                            'rarity': badge.rarity,
+                        }
+                        for badge in new_badges
+                    ],
+                }
+                submission.save(update_fields=['execution_result'])
+
+        return Response({
+            "submission_id": submission.id,
+            "id": submission.id,
+            "status": submission.status,
+            "execution_result": submission.execution_result,
+            "quest": QuestDetailSerializer(quest, context={'request': request}).data,
         }, status=status.HTTP_201_CREATED)
 
 
@@ -350,4 +469,3 @@ class QuestSubmissionHistoryView(generics.ListAPIView):
             user=user,
             quest_id=quest_id
         ).select_related('quest').order_by('-created_at')
-

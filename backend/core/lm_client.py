@@ -115,7 +115,7 @@ class LMStudioClient:
             )
         except requests.exceptions.Timeout:
             raise ExecutionServiceUnavailable(
-                f"LM Studio request timed out after {self.timeout} seconds"
+                f"DEBUG_MARKER: LM Studio request timed out after {self.timeout} seconds"
             )
         except requests.exceptions.RequestException as e:
             raise ExecutionServiceUnavailable(

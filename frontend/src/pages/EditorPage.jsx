@@ -17,8 +17,11 @@ import {
 import BottomNav from '../components/layout/BottomNav';
 import AIDetectionBadge from '../components/editor/AIDetectionBadge';
 import ExplanationModal from '../components/editor/ExplanationModal';
+import ResultModal from '../components/ResultModal';
 import useEditorStore, { DEFAULT_TEMPLATES } from '../store/editorStore';
 import useAuthStore from '../store/authStore';
+import useSkillStore from '../store/skillStore';
+import useQuestStore from '../store/questStore';
 import { cn } from '../utils/cn';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -218,6 +221,8 @@ function EditorPage() {
   const { questId } = useParams();
   const navigate = useNavigate();
   const { accessToken: token } = useAuthStore();
+  const { fetchSkillTree, fetchSkills } = useSkillStore();
+  const { fetchCompletedQuests, fetchQuests } = useQuestStore();
 
   const { getQuestCode, getQuestLanguage, setQuestCode, setQuestLanguage, resetQuestCode, aiModeEnabled, toggleAiMode } = useEditorStore();
 
@@ -237,6 +242,7 @@ function EditorPage() {
   const [execTime, setExecTime] = useState(null);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
   const [showExplanationModal, setShowExplanationModal] = useState(false);
+  const [resultModal, setResultModal] = useState({ open: false, submission: null });
 
   const editorRef = useRef(null);
   const pollRef = useRef(null);
@@ -295,38 +301,63 @@ function EditorPage() {
 
   useEffect(() => () => clearPoll(), [clearPoll]);
 
-  const pollStatus = useCallback((sid) => {
-    if (pollAttemptsRef.current >= MAX_POLL_ATTEMPTS) { setExecStatus('timeout'); clearPoll(); return; }
-    pollAttemptsRef.current += 1;
-    pollRef.current = setTimeout(async () => {
-      try {
-        const res = await api.get(`/api/execute/status/${sid}/`);
-        const data = res.data;
-        if (data.status === 'pending' || data.status === 'running') { pollStatus(sid); return; }
-        clearPoll();
-        const result = data.execution_result || {};
-        const tests = result.test_results || [];
-        setExecTime(result.time_ms ?? null);
-        setExecOutput({ stdout: result.output || result.stdout || '', stderr: result.stderr || '', test_results: tests });
-        const allPassed = tests.length > 0 && tests.every(t => t.status === 'passed');
-        setExecStatus(data.status === 'passed' || allPassed ? 'passed' : data.status === 'failed' ? 'failed' : 'error');
-        if (data.ai_feedback && Object.keys(data.ai_feedback).length > 0) setAiFeedback(data.ai_feedback);
-        if (data.ai_detection_score !== undefined) {
-          setDetectionScore(data.ai_detection_score);
-          setCurrentSubmissionId(sid);
-          // Try to fetch detection log
-          try {
-            const logRes = await api.get(`/api/ai-detection/submissions/${sid}/log/`, {
-              headers: { Authorization: `Bearer ${token}` }
+    const pollStatus = useCallback((sid, retryCount = 0) => {
+      if (pollAttemptsRef.current >= MAX_POLL_ATTEMPTS) { setExecStatus('timeout'); clearPoll(); return; }
+      pollAttemptsRef.current += 1;
+      pollRef.current = setTimeout(async () => {
+        try {
+          const res = await api.get(`/api/execute/status/${sid}/`);
+          const data = res.data;
+          if (data.status === 'pending' || data.status === 'running') { pollStatus(sid); return; }
+          clearPoll();
+          const result = data.execution_result || {};
+          const tests = result.test_results || [];
+          setExecTime(result.time_ms ?? null);
+          setExecOutput({ stdout: result.output || result.stdout || '', stderr: result.stderr || '', test_results: tests });
+          const allPassed = tests.length > 0 && tests.every(t => t.status === 'passed');
+          setExecStatus(data.status === 'passed' || allPassed ? 'passed' : data.status === 'failed' ? 'failed' : 'error');
+          if (data.ai_feedback && Object.keys(data.ai_feedback).length > 0) setAiFeedback(data.ai_feedback);
+          if (data.status === 'passed') {
+            await Promise.allSettled([fetchSkillTree(), fetchSkills(), fetchCompletedQuests(), fetchQuests()]);
+            const resultMeta = data.execution_result || {};
+            setResultModal({
+              open: true,
+              submission: {
+                ...data,
+                quest: data.quest || quest,
+              },
+              xpAwarded: resultMeta.xp_awarded || 0,
+              unlockedStages: resultMeta.unlocked_skills || [],
             });
-            if (logRes.data) setDetectionLog(logRes.data);
-          } catch (e) {
-            // Detection log not available, continue
+            (resultMeta.new_badges || []).forEach((badge) => {
+              window.dispatchEvent(new CustomEvent('badgeEarned', {
+                detail: { ...badge, xp_awarded: resultMeta.xp_awarded || 0 },
+              }));
+            });
+          }
+          if (data.ai_detection_score !== undefined) {
+            setDetectionScore(data.ai_detection_score);
+            setCurrentSubmissionId(sid);
+            try {
+              const logRes = await api.get(`/api/ai-detection/submissions/${sid}/log/`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              if (logRes.data) setDetectionLog(logRes.data);
+            } catch (e) { /* ignore */ }
+          }
+        } catch (err) {
+          // If it's a network error (no response), retry up to 3 times
+          if (!err.response && retryCount < 3) {
+            console.warn(`Polling network error, retrying... (${retryCount + 1}/3)`);
+            pollStatus(sid, retryCount + 1);
+          } else {
+            clearPoll(); 
+            setExecStatus('error'); 
+            setExecOutput({ stdout: '', stderr: 'Failed to fetch status. Server may be unreachable.', test_results: [] });
           }
         }
-      } catch { clearPoll(); setExecStatus('error'); setExecOutput({ stdout: '', stderr: 'Failed to fetch status.', test_results: [] }); }
-    }, POLL_INTERVAL_MS);
-  }, [clearPoll, token]);
+      }, POLL_INTERVAL_MS);
+    }, [clearPoll, token, quest, fetchSkillTree, fetchSkills, fetchCompletedQuests, fetchQuests]);
 
   const handleRun = useCallback(async () => {
     if (!code.trim() || execStatus === 'running') return;
@@ -428,6 +459,12 @@ function EditorPage() {
   const isRunning = execStatus === 'running';
   const currentLang = LANGUAGES.find(l => l.id === language) || LANGUAGES[0];
   const langColor = LANG_COLORS[language] || LANG_COLORS.python;
+
+  useEffect(() => {
+    if (quest?.type === 'mcq') {
+      navigate(`/quests/${quest.id}/mcq`, { replace: true });
+    }
+  }, [quest, navigate]);
 
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (questLoading) return (
@@ -857,6 +894,16 @@ function EditorPage() {
 
       {/* Bottom Nav */}
       <BottomNav />
+      <ResultModal
+        isOpen={resultModal.open}
+        submission={resultModal.submission}
+        quote="Progress saved. The next branch is ready."
+        xpAwarded={resultModal.xpAwarded || 0}
+        unlockedStages={resultModal.unlockedStages || []}
+        onTryAgain={() => setResultModal({ open: false, submission: null })}
+        onNextQuest={() => navigate('/skills')}
+        onClose={() => setResultModal({ open: false, submission: null })}
+      />
     </div>
   );
 }

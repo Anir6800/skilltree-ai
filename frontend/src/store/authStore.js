@@ -35,6 +35,7 @@ const useAuthStore = create(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      _hasHydrated: false,
 
       // Login action
       login: async (username, password) => {
@@ -187,11 +188,21 @@ const useAuthStore = create(
       // Initialize from storage (called on app start)
       initialize: () => {
         const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+        const { isAuthenticated } = get();
         
-        if (accessToken) {
+        // If we have a token but state says not authenticated, sync them
+        if (accessToken && !isAuthenticated) {
           set({ isAuthenticated: true });
+        }
+        
+        // If state says authenticated, refresh user data
+        if (get().isAuthenticated) {
           get().fetchUser();
         }
+      },
+      
+      setHasHydrated: (state) => {
+        set({ _hasHydrated: state });
       },
     }),
     {
@@ -201,6 +212,9 @@ const useAuthStore = create(
         user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: (state) => {
+        return () => state.setHasHydrated(true);
+      }
     }
   )
 );

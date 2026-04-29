@@ -67,6 +67,23 @@ class ChromaDBClient:
                 name=name,
                 metadata=metadata
             )
+
+    def get_collection(self, name: str):
+        """Get collection by name."""
+        return self.client.get_collection(name=name)
+
+    def clear_collections(self, collection_names: List[str]):
+        """Wipe all documents from specified collections."""
+        for name in collection_names:
+            try:
+                collection = self.get_collection(name)
+                # Get all IDs
+                results = collection.get()
+                ids = results['ids']
+                if ids:
+                    collection.delete(ids=ids)
+            except Exception:
+                pass
     
     def upsert_skill_knowledge(
         self,
@@ -333,3 +350,8 @@ class ChromaDBClient:
 
 # Singleton instance
 chroma_client = ChromaDBClient()
+
+
+def get_chroma_client():
+    """Helper to get the singleton ChromaDB client instance."""
+    return chroma_client
