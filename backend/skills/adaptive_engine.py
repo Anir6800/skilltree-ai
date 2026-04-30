@@ -1,6 +1,11 @@
 """
 SkillTree AI - Adaptive Learning Engine
 Bayesian ability scoring, difficulty reordering, skill flagging, and bridge quest generation.
+
+Schema alignment (2024 migration):
+  - AdaptiveProfile and UserSkillFlag now imported from users.models (not users.models_adaptive).
+  - adjustment_history JSON field removed from AdaptiveProfile; writes go to AdaptiveAdjustmentLog.
+  - LMStudioClient replaced by the lm_client singleton from core.lm_client.
 """
 
 import logging
@@ -10,7 +15,7 @@ from django.db.models import Q, Avg, Count
 from django.utils import timezone
 from quests.models import QuestSubmission, Quest
 from skills.models import Skill, SkillProgress
-from users.models import User
+from users.models import User, AdaptiveProfile, AdaptiveAdjustmentLog, UserSkillFlag
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +80,14 @@ class AdaptiveTreeEngine:
         consecutive_fails = self._count_consecutive_fails(recent_submissions)
 
         # First attempt pass rate: % of quests passed on first try (last 10 quests)
-        last_10_submissions = recent_submissions.order_by('-created_at')[:self.FIRST_ATTEMPT_WINDOW]
+        last_10_submissions = list(recent_submissions.order_by('-created_at')[:self.FIRST_ATTEMPT_WINDOW])
         first_attempt_passes = sum(
             1 for sub in last_10_submissions
             if sub.status == 'passed' and self._is_first_attempt(sub)
         )
         first_attempt_pass_rate = first_attempt_passes / len(last_10_submissions) if last_10_submissions else 0.0
 
-        # Hint usage rate: % of quests where user requested a hint
+        # Hint usage rate: % of submissions where user requested a hint
         hint_usage_rate = self._calculate_hint_usage_rate(recent_submissions)
 
         return {
@@ -92,24 +97,43 @@ class AdaptiveTreeEngine:
             'hint_usage_rate': hint_usage_rate,
         }
 
-    def update_ability_score(self, outcome: float) -> float:
+    def update_ability_score(self, outcome: float, quest=None) -> float:
         """
         Apply Bayesian update to user's ability score.
         outcome: 1.0 for fast first-pass, 0.0 for repeated fail, 0.5 for normal pass.
+
+        Writes an AdaptiveAdjustmentLog entry — adjustment_history JSON no longer exists.
+
         Returns new ability score.
         """
-        from users.models_adaptive import AdaptiveProfile
-
         profile = self._get_or_create_adaptive_profile()
         old_score = profile.ability_score
+        old_difficulty = profile.preferred_difficulty
 
         new_score = old_score + self.LEARNING_RATE * (outcome - old_score)
         new_score = max(self.ABILITY_MIN, min(self.ABILITY_MAX, new_score))
+        new_difficulty = max(1, min(self.DIFFICULTY_TIERS, int(new_score * self.DIFFICULTY_TIERS) + 1))
 
         profile.ability_score = new_score
-        profile.save()
+        profile.preferred_difficulty = new_difficulty
+        profile.save(update_fields=['ability_score', 'preferred_difficulty'])
 
-        logger.info(f"User {self.user.id}: ability_score {old_score:.3f} -> {new_score:.3f} (outcome={outcome})")
+        # Log to normalized table
+        reason = f"Outcome: {outcome:.2f}"
+        AdaptiveAdjustmentLog.objects.create(
+            profile=profile,
+            ability_before=old_score,
+            ability_after=new_score,
+            difficulty_before=old_difficulty,
+            difficulty_after=new_difficulty,
+            reason=reason,
+            quest=quest,
+        )
+
+        logger.info(
+            f"User {self.user.id}: ability_score {old_score:.3f} -> {new_score:.3f} "
+            f"difficulty {old_difficulty} -> {new_difficulty} (outcome={outcome})"
+        )
         return new_score
 
     def update_preferred_difficulty(self) -> int:
@@ -117,13 +141,11 @@ class AdaptiveTreeEngine:
         Auto-set preferred_difficulty to ceil(ability_score * 5).
         Returns new preferred difficulty.
         """
-        from users.models_adaptive import AdaptiveProfile
-
         profile = self._get_or_create_adaptive_profile()
         new_difficulty = max(1, min(self.DIFFICULTY_TIERS, int(profile.ability_score * self.DIFFICULTY_TIERS) + 1))
-        profile.preferred_difficulty = new_difficulty
-        profile.save()
-
+        if profile.preferred_difficulty != new_difficulty:
+            profile.preferred_difficulty = new_difficulty
+            profile.save(update_fields=['preferred_difficulty'])
         return new_difficulty
 
     def adapt_tree_for_user(self) -> Dict[str, Any]:
@@ -135,11 +157,11 @@ class AdaptiveTreeEngine:
         4. Generate bridge quests for struggling skills
         Returns summary of changes.
         """
-        from users.models_adaptive import AdaptiveProfile, UserSkillFlag
-
         profile = self._get_or_create_adaptive_profile()
         signals = self.collect_performance_signals()
         preferred_difficulty = profile.preferred_difficulty
+        old_score = profile.ability_score
+        old_difficulty = profile.preferred_difficulty
 
         changes = {
             'reordered_skills': [],
@@ -190,22 +212,22 @@ class AdaptiveTreeEngine:
                     if bridge_quest:
                         changes['bridge_quests_generated'].append(bridge_quest.id)
 
-        # Log adjustment
-        profile.adjustment_history.append({
-            'timestamp': timezone.now().isoformat(),
-            'reason': 'Periodic adaptation',
-            'signals': signals,
-            'changes': {k: len(v) for k, v in changes.items()},
-        })
-        profile.save()
+        # Log adaptation run to normalized AdaptiveAdjustmentLog
+        AdaptiveAdjustmentLog.objects.create(
+            profile=profile,
+            ability_before=old_score,
+            ability_after=profile.ability_score,
+            difficulty_before=old_difficulty,
+            difficulty_after=profile.preferred_difficulty,
+            reason='Periodic adaptation',
+            quest=None,
+        )
 
         return changes
 
-    def _get_or_create_adaptive_profile(self):
+    def _get_or_create_adaptive_profile(self) -> AdaptiveProfile:
         """Get or create AdaptiveProfile for user."""
-        from users.models_adaptive import AdaptiveProfile
-
-        profile, created = AdaptiveProfile.objects.get_or_create(user=self.user)
+        profile, _ = AdaptiveProfile.objects.get_or_create(user=self.user)
         return profile
 
     def _get_global_median_solve_time(self) -> float:
@@ -259,13 +281,14 @@ class AdaptiveTreeEngine:
 
     def _calculate_hint_usage_rate(self, submissions) -> float:
         """Calculate % of submissions where user requested a hint."""
-        if not submissions:
+        sub_list = list(submissions)
+        if not sub_list:
             return 0.0
         hint_count = sum(
-            1 for sub in submissions
+            1 for sub in sub_list
             if sub.execution_result and sub.execution_result.get('hint_requested', False)
         )
-        return hint_count / len(submissions)
+        return hint_count / len(sub_list)
 
     def _reorder_skills_by_difficulty(self, user_skills, preferred_difficulty: int) -> List:
         """
@@ -273,7 +296,6 @@ class AdaptiveTreeEngine:
         Deprioritize 2+ levels above.
         """
         ideal_range = (preferred_difficulty - 1, preferred_difficulty + 1)
-        above_range = preferred_difficulty + 2
 
         ideal = []
         acceptable = []
@@ -293,41 +315,57 @@ class AdaptiveTreeEngine:
     def _generate_bridge_quest(self, skill: Skill) -> Quest:
         """
         Generate a bridge quest at difficulty-1 level for struggling users.
-        Uses LM Studio to create the quest.
+        Uses lm_client singleton — never instantiate LMStudioClient directly.
         """
-        from core.lm_client import LMStudioClient
+        from core.lm_client import lm_client, ExecutionServiceUnavailable
 
         bridge_difficulty = max(1, skill.difficulty - 1)
-        prompt = f"""
-        Create a beginner-friendly quest for the skill: {skill.title}
-        Description: {skill.description}
-        Target difficulty: {bridge_difficulty}/5
-        
-        Return JSON with:
-        - title: string (max 100 chars)
-        - description: string (max 500 chars)
-        - starter_code: string (optional)
-        - test_cases: list of {{"input": "...", "expected_output": "..."}}
-        """
+        prompt = f"""Create a beginner-friendly coding quest for the skill: {skill.title}
+Description: {skill.description}
+Target difficulty: {bridge_difficulty}/5
+
+Return ONLY valid JSON with this exact structure:
+{{
+  "title": "Short descriptive title (max 80 chars)",
+  "description": "Clear problem statement",
+  "starter_code": "// Optional starter code",
+  "test_cases": [{{"input": "...", "expected_output": "..."}}]
+}}"""
+
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an expert coding instructor. Return only valid JSON."
+            },
+            {"role": "user", "content": prompt}
+        ]
 
         try:
-            client = LMStudioClient()
-            response = client.generate(prompt, max_tokens=1000)
-            quest_data = self._parse_quest_response(response)
+            response = lm_client.chat_completion(
+                messages=messages,
+                max_tokens=1000,
+                temperature=0.3,
+            )
+            response_text = lm_client.extract_content(response)
+            quest_data = self._parse_quest_response(response_text)
 
             bridge_quest = Quest.objects.create(
                 skill=skill,
                 type='coding',
-                title=f"[Bridge] {quest_data.get('title', 'Practice')}",
+                title=f"[Bridge] {quest_data.get('title', 'Practice Problem')}"[:200],
                 description=quest_data.get('description', ''),
                 starter_code=quest_data.get('starter_code', ''),
                 test_cases=quest_data.get('test_cases', []),
                 xp_reward=int(50 * (bridge_difficulty / 5)),
                 estimated_minutes=10,
                 difficulty_multiplier=0.7,
+                is_stub=False,
             )
             logger.info(f"Generated bridge quest {bridge_quest.id} for skill {skill.id}")
             return bridge_quest
+        except ExecutionServiceUnavailable as e:
+            logger.error(f"LM Studio unavailable for bridge quest generation: {e}")
+            return None
         except Exception as e:
             logger.error(f"Failed to generate bridge quest for skill {skill.id}: {e}")
             return None

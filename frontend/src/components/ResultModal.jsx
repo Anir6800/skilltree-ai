@@ -296,7 +296,7 @@ const ResultModal = ({
                 <div className="stat-item">
                   <span className="stat-label">AI Score</span>
                   <span className="stat-value">
-                    {(submission.ai_feedback.score * 100).toFixed(0)}
+                    {Number(submission.ai_feedback.score).toFixed(0)}
                     <span className="stat-unit">%</span>
                   </span>
                 </div>
@@ -343,21 +343,21 @@ const ResultModal = ({
                 {/* Spinning XP Counter */}
                 <motion.div
                   className="xp-counter"
-                  animate={{ rotate: 360 }}
+                  animate={{ scale: 1 }}
                   transition={{
-                    duration: 2,
-                    ease: 'easeInOut',
-                    repeat: Infinity,
-                    repeatDelay: 1,
+                    type: 'spring',
+                    stiffness: 200,
+                    damping: 15,
+                    // Removed repeatDelay
                   }}
                 >
                   <motion.span
                     className="xp-icon"
-                    animate={{ scale: [1, 1.2, 1] }}
+                    animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 360] }}
                     transition={{
-                      duration: 0.6,
+                      duration: 3,
                       repeat: Infinity,
-                      repeatDelay: 2.5,
+                      ease: 'linear',
                     }}
                   >
                     ⭐

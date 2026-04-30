@@ -4,7 +4,12 @@ param(
     [switch]$SkipRedisValidation,
     [switch]$StrictRuntimeValidation,
     [switch]$WithDemoUsers,
-    [switch]$SkipSchemaRebuild
+    [switch]$SkipSchemaRebuild,
+    [switch]$SkipRuntimeClean,
+    [switch]$SkipSeed,
+    [switch]$AllowProduction,
+    [string]$AdminEmail,
+    [string]$AdminPassword
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,6 +33,11 @@ try {
     if ($StrictRuntimeValidation) { $argsList += "--strict-runtime-validation" }
     if ($WithDemoUsers) { $argsList += "--with-demo-users" }
     if ($SkipSchemaRebuild) { $argsList += "--skip-schema-rebuild" }
+    if ($SkipRuntimeClean) { $argsList += "--skip-runtime-clean" }
+    if ($SkipSeed) { $argsList += "--skip-seed" }
+    if ($AllowProduction) { $argsList += "--allow-production" }
+    if ($AdminEmail) { $argsList += "--admin-email", $AdminEmail }
+    if ($AdminPassword) { $argsList += "--admin-password", $AdminPassword }
 
     python @argsList
 }

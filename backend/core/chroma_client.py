@@ -1,13 +1,23 @@
 """
 ChromaDB Client for RAG-based Code Evaluation
 Singleton client managing skill knowledge, code patterns, and AI detection collections.
+
+EmbeddingRecord integration:
+    Every upsert calls _sync_embedding_record() to keep the relational
+    EmbeddingRecord table in sync with ChromaDB state.
+    Every delete calls _delete_embedding_record() to remove orphaned tracking rows.
+    This prevents stale vector references after relational model updates.
 """
+
+import hashlib
+import logging
+from typing import List, Dict, Any, Optional
 
 import chromadb
 from chromadb.config import Settings
 from django.conf import settings as django_settings
-from typing import List, Dict, Any, Optional
-import hashlib
+
+logger = logging.getLogger(__name__)
 
 
 class ChromaDBClient:
@@ -73,17 +83,99 @@ class ChromaDBClient:
         return self.client.get_collection(name=name)
 
     def clear_collections(self, collection_names: List[str]):
-        """Wipe all documents from specified collections."""
+        """Wipe all documents from specified collections and their EmbeddingRecord rows."""
         for name in collection_names:
             try:
                 collection = self.get_collection(name)
-                # Get all IDs
                 results = collection.get()
                 ids = results['ids']
                 if ids:
                     collection.delete(ids=ids)
-            except Exception:
-                pass
+                # Remove tracking records for this collection
+                self._bulk_delete_embedding_records(name)
+            except Exception as exc:
+                logger.warning(f"[ChromaDB] clear_collections failed for {name!r}: {exc}")
+
+    # ------------------------------------------------------------------
+    # EmbeddingRecord lifecycle helpers
+    # ------------------------------------------------------------------
+
+    def _sync_embedding_record(
+        self,
+        content_type: str,
+        object_id: int,
+        collection_name: str,
+        chroma_id: str,
+        document: str,
+    ):
+        """
+        Create or update the relational EmbeddingRecord for a upserted vector.
+        Computes SHA-256 of the document text to detect content drift.
+        Skips gracefully if called outside a Django app context (e.g. tests).
+        """
+        try:
+            from skills.models import EmbeddingRecord
+            checksum = hashlib.sha256(document.encode('utf-8')).hexdigest()
+            EmbeddingRecord.objects.update_or_create(
+                content_type=content_type,
+                object_id=object_id,
+                collection_name=collection_name,
+                defaults={'chroma_id': chroma_id, 'checksum': checksum},
+            )
+        except Exception as exc:
+            # Non-fatal — log and continue so the vector upsert still succeeds.
+            logger.warning(f"[ChromaDB] EmbeddingRecord sync failed ({content_type}#{object_id}): {exc}")
+
+    def _delete_embedding_record(
+        self,
+        content_type: str,
+        object_id: int,
+        collection_name: str,
+    ):
+        """Remove the tracking record when a vector is explicitly deleted."""
+        try:
+            from skills.models import EmbeddingRecord
+            EmbeddingRecord.objects.filter(
+                content_type=content_type,
+                object_id=object_id,
+                collection_name=collection_name,
+            ).delete()
+        except Exception as exc:
+            logger.warning(f"[ChromaDB] EmbeddingRecord delete failed ({content_type}#{object_id}): {exc}")
+
+    def _bulk_delete_embedding_records(self, collection_name: str):
+        """Remove all EmbeddingRecord rows for a given collection (used by clear_collections)."""
+        try:
+            from skills.models import EmbeddingRecord
+            EmbeddingRecord.objects.filter(collection_name=collection_name).delete()
+        except Exception as exc:
+            logger.warning(f"[ChromaDB] Bulk EmbeddingRecord delete failed for {collection_name!r}: {exc}")
+
+    def get_stale_skill_embeddings(self) -> List[int]:
+        """
+        Return a list of skill IDs whose embedding checksum is stale
+        (i.e. the Skill row was updated after the last embed).
+        """
+        try:
+            from skills.models import EmbeddingRecord, Skill
+            from django.db.models import F
+            stale_records = EmbeddingRecord.objects.filter(
+                content_type='skill',
+                collection_name='skill_knowledge',
+            ).select_related()
+            skill_ids = []
+            for record in stale_records:
+                try:
+                    skill = Skill.objects.get(pk=record.object_id)
+                    if skill.updated_at > record.updated_at:
+                        skill_ids.append(record.object_id)
+                except Skill.DoesNotExist:
+                    skill_ids.append(record.object_id)  # orphaned
+            return skill_ids
+        except Exception as exc:
+            logger.warning(f"[ChromaDB] get_stale_skill_embeddings failed: {exc}")
+            return []
+
     
     def upsert_skill_knowledge(
         self,
@@ -118,8 +210,8 @@ class ChromaDBClient:
         
         document = "\n\n".join(text_parts)
         doc_id = f"skill_{skill_id}"
-        
-        # Upsert to collection
+
+        # Upsert to ChromaDB
         self.skill_knowledge.upsert(
             ids=[doc_id],
             documents=[document],
@@ -127,8 +219,17 @@ class ChromaDBClient:
                 "skill_id": skill_id,
                 "title": title,
                 "category": category,
-                "difficulty": difficulty
+                "difficulty": difficulty,
             }]
+        )
+
+        # Keep EmbeddingRecord in sync
+        self._sync_embedding_record(
+            content_type='skill',
+            object_id=skill_id,
+            collection_name='skill_knowledge',
+            chroma_id=doc_id,
+            document=document,
         )
     
     def query_skill_knowledge(
@@ -168,7 +269,7 @@ class ChromaDBClient:
             
             return formatted
         except Exception as e:
-            print(f"Error querying skill knowledge: {e}")
+            logger.warning(f"[ChromaDB] query_skill_knowledge error: {e}")
             return []
     
     def upsert_code_pattern(
@@ -317,13 +418,16 @@ class ChromaDBClient:
             return []
     
     def reset_all_collections(self):
-        """Reset all collections (use with caution)."""
+        """Reset all ChromaDB collections and purge all EmbeddingRecord rows."""
         try:
-            self.client.delete_collection("skill_knowledge")
-            self.client.delete_collection("code_patterns")
-            self.client.delete_collection("ai_code_samples")
-            
-            # Recreate
+            for name in ["skill_knowledge", "code_patterns", "ai_code_samples"]:
+                try:
+                    self.client.delete_collection(name)
+                except Exception:
+                    pass
+                self._bulk_delete_embedding_records(name)
+
+            # Recreate empty collections
             self.skill_knowledge = self._get_or_create_collection(
                 "skill_knowledge",
                 {"description": "Skill descriptions and best practices"}
@@ -336,8 +440,9 @@ class ChromaDBClient:
                 "ai_code_samples",
                 {"description": "Known AI-generated patterns"}
             )
+            logger.info("[ChromaDB] All collections reset successfully.")
         except Exception as e:
-            print(f"Error resetting collections: {e}")
+            logger.error(f"[ChromaDB] reset_all_collections failed: {e}")
     
     def get_collection_stats(self) -> Dict[str, int]:
         """Get document counts for all collections."""

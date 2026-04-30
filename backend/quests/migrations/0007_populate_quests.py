@@ -61,16 +61,15 @@ def populate_quests(apps, schema_editor):
                 '    pass\n\n'
                 '# Read input\n'
                 'import sys\n'
-                'line = input().split()\n'
-                'n = int(line[0])\n'
-                'nums = list(map(int, line[1:n+1]))\n'
-                'target = int(line[n+1])\n'
+                'n = int(input())\n'
+                'nums = list(map(int, input().split()))\n'
+                'target = int(input())\n'
                 'print(two_sum(nums, target))\n'
             ),
             test_cases=[
-                {"input": "4 2 7 11 15 9",  "expected_output": "[0, 1]"},
-                {"input": "3 3 2 4 6",       "expected_output": "[1, 2]"},
-                {"input": "2 3 3 6",         "expected_output": "[0, 1]"},
+                {"input": "4\n2 7 11 15\n9",  "expected_output": "[0, 1]"},
+                {"input": "3\n3 2 4\n6",       "expected_output": "[1, 2]"},
+                {"input": "2\n3 3\n6",         "expected_output": "[0, 1]"},
             ],
             xp_reward=100,
             estimated_minutes=15,
@@ -234,16 +233,15 @@ def populate_quests(apps, schema_editor):
                 'def binary_search(nums, target):\n'
                 '    # Your solution here\n'
                 '    pass\n\n'
-                'line = input().split()\n'
-                'n = int(line[0])\n'
-                'nums = list(map(int, line[1:n+1]))\n'
-                'target = int(line[n+1])\n'
+                'n = int(input())\n'
+                'nums = list(map(int, input().split()))\n'
+                'target = int(input())\n'
                 'print(binary_search(nums, target))\n'
             ),
             test_cases=[
-                {"input": "6 -1 0 3 5 9 12 9",  "expected_output": "4"},
-                {"input": "6 -1 0 3 5 9 12 2",  "expected_output": "-1"},
-                {"input": "1 5 5",               "expected_output": "0"},
+                {"input": "6\n-1 0 3 5 9 12\n9",  "expected_output": "4"},
+                {"input": "6\n-1 0 3 5 9 12\n2",  "expected_output": "-1"},
+                {"input": "1\n5\n5",               "expected_output": "0"},
             ],
             xp_reward=150,
             estimated_minutes=20,
@@ -265,16 +263,15 @@ def populate_quests(apps, schema_editor):
                 'def search_insert(nums, target):\n'
                 '    # Your solution here\n'
                 '    pass\n\n'
-                'line = input().split()\n'
-                'n = int(line[0])\n'
-                'nums = list(map(int, line[1:n+1]))\n'
-                'target = int(line[n+1])\n'
+                'n = int(input())\n'
+                'nums = list(map(int, input().split()))\n'
+                'target = int(input())\n'
                 'print(search_insert(nums, target))\n'
             ),
             test_cases=[
-                {"input": "4 1 3 5 6 5", "expected_output": "2"},
-                {"input": "4 1 3 5 6 2", "expected_output": "1"},
-                {"input": "4 1 3 5 6 7", "expected_output": "4"},
+                {"input": "4\n1 3 5 6\n5", "expected_output": "2"},
+                {"input": "4\n1 3 5 6\n2", "expected_output": "1"},
+                {"input": "4\n1 3 5 6\n7", "expected_output": "4"},
             ],
             xp_reward=130,
             estimated_minutes=15,
@@ -297,13 +294,14 @@ def populate_quests(apps, schema_editor):
                 '    n = len(nums)\n'
                 '    # Your solution here\n'
                 '    return nums\n\n'
+                'n = int(input())\n'
                 'nums = list(map(int, input().split()))\n'
                 'print(bubble_sort(nums))\n'
             ),
             test_cases=[
-                {"input": "7 64 34 25 12 22 11 90", "expected_output": "[11, 12, 22, 25, 34, 64, 90]"},
-                {"input": "3 3 1 2",                "expected_output": "[1, 2, 3]"},
-                {"input": "1 42",                   "expected_output": "[42]"},
+                {"input": "7\n64 34 25 12 22 11 90", "expected_output": "[11, 12, 22, 25, 34, 64, 90]"},
+                {"input": "3\n3 1 2",                "expected_output": "[1, 2, 3]"},
+                {"input": "1\n42",                   "expected_output": "[42]"},
             ],
             xp_reward=100,
             estimated_minutes=20,

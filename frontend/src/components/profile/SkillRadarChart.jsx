@@ -14,60 +14,37 @@ import { getSkillRadar } from '../../api/skillApi';
  * Inner chart component with dimension guards
  */
 const RadarChartContent = ({ data }) => {
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const containerRef = useRef(null);
-
-  useLayoutEffect(() => {
-    if (!containerRef.current) return;
-
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        setDimensions({ width, height });
-      }
-    });
-
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div ref={containerRef} className="w-full h-full min-h-[350px] relative">
-      {dimensions.width > 0 && dimensions.height > 0 ? (
-        <ResponsiveContainer width="100%" height="100%" debounce={100}>
-          <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
-            <PolarGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="5 5" radialLines={false} />
-            <PolarAngleAxis 
-              dataKey="name" 
-              stroke="rgba(255,255,255,0.3)"
-              tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
-            />
-            <PolarRadiusAxis 
-              angle={90} 
-              domain={[0, 100]} 
-              stroke="rgba(255,255,255,0.1)"
-              tick={{ fill: '#64748b', fontSize: 10 }}
-              tickCount={6}
-            />
-            <Radar
-              name="Mastery %"
-              dataKey="value"
-              stroke="#6366f1"
-              strokeWidth={3}
-              fill="#6366f1"
-              fillOpacity={0.3}
-              dot={(props) => <RadarDot {...props} />}
-              animationDuration={800}
-              animationEasing="ease-out"
-            />
-            <Tooltip content={<CustomTooltip />} />
-          </RadarChart>
-        </ResponsiveContainer>
-      ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-        </div>
-      )}
+    <div className="w-full min-h-[350px] h-[350px] relative">
+      <ResponsiveContainer width="100%" height="100%">
+        <RadarChart cx="50%" cy="50%" outerRadius="75%" data={data}>
+          <PolarGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="5 5" radialLines={false} />
+          <PolarAngleAxis 
+            dataKey="name" 
+            stroke="rgba(255,255,255,0.3)"
+            tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+          />
+          <PolarRadiusAxis 
+            angle={90} 
+            domain={[0, 100]} 
+            stroke="rgba(255,255,255,0.1)"
+            tick={{ fill: '#64748b', fontSize: 10 }}
+            tickCount={6}
+          />
+          <Radar
+            name="Mastery %"
+            dataKey="value"
+            stroke="#6366f1"
+            strokeWidth={3}
+            fill="#6366f1"
+            fillOpacity={0.3}
+            dot={(props) => <RadarDot {...props} />}
+            animationDuration={800}
+            animationEasing="ease-out"
+          />
+          <Tooltip content={<CustomTooltip />} />
+        </RadarChart>
+      </ResponsiveContainer>
     </div>
   );
 };

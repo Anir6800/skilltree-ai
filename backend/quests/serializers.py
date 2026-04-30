@@ -20,31 +20,28 @@ class QuestListSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request:
             return 'not_started'
-            
+
         user = request.user
         if not user or not user.is_authenticated:
             return 'not_started'
-        
-        # Check for passed submission first
-        passed_submission = QuestSubmission.objects.filter(
-            user=user, 
-            quest=obj, 
-            status='passed'
-        ).first()
-        
-        if passed_submission:
+
+        # Use pre-fetched submissions if available (set by QuestListView)
+        user_submissions = getattr(obj, 'user_submissions', None)
+        if user_submissions is not None:
+            statuses = {s.status for s in user_submissions}
+            if 'passed' in statuses:
+                return 'passed'
+            if statuses & {'pending', 'running'}:
+                return 'in_progress'
+            return 'not_started'
+
+        # Fallback for single-object contexts (e.g. QuestDetailView)
+        if QuestSubmission.objects.filter(user=user, quest=obj, status='passed').exists():
             return 'passed'
-        
-        # Check for in-progress submission
-        in_progress_submission = QuestSubmission.objects.filter(
-            user=user, 
-            quest=obj, 
-            status__in=['pending', 'running']
-        ).first()
-        
-        if in_progress_submission:
+        if QuestSubmission.objects.filter(
+            user=user, quest=obj, status__in=['pending', 'running']
+        ).exists():
             return 'in_progress'
-        
         return 'not_started'
 
 class QuestDetailSerializer(serializers.ModelSerializer):
@@ -87,31 +84,27 @@ class QuestDetailSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request:
             return 'not_started'
-            
+
         user = request.user
         if not user or not user.is_authenticated:
             return 'not_started'
-        
-        # Check for passed submission first
-        passed_submission = QuestSubmission.objects.filter(
-            user=user, 
-            quest=obj, 
-            status='passed'
-        ).first()
-        
-        if passed_submission:
+
+        # Use pre-fetched submissions if available
+        user_submissions = getattr(obj, 'user_submissions', None)
+        if user_submissions is not None:
+            statuses = {s.status for s in user_submissions}
+            if 'passed' in statuses:
+                return 'passed'
+            if statuses & {'pending', 'running'}:
+                return 'in_progress'
+            return 'not_started'
+
+        if QuestSubmission.objects.filter(user=user, quest=obj, status='passed').exists():
             return 'passed'
-        
-        # Check for in-progress submission
-        in_progress_submission = QuestSubmission.objects.filter(
-            user=user, 
-            quest=obj, 
-            status__in=['pending', 'running']
-        ).first()
-        
-        if in_progress_submission:
+        if QuestSubmission.objects.filter(
+            user=user, quest=obj, status__in=['pending', 'running']
+        ).exists():
             return 'in_progress'
-        
         return 'not_started'
 
     def get_test_cases(self, obj):

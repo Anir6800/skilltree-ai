@@ -10,6 +10,7 @@ from .serializers import (
     SkillSerializer, SkillProgressSerializer,
     GeneratedSkillTreeSerializer, GeneratedSkillTreeDetailSerializer
 )
+from quests.models import Quest
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class SkillTreeView(APIView):
             # Fallback if GeneratedSkillTree table doesn't exist (migration not run)
             logger.warning(f"GeneratedSkillTree query failed: {str(e)}. Falling back to all skills.")
             skills = Skill.objects.all().prefetch_related('prerequisites')
-        
+
         # Category mapping for frontend
         CATEGORY_MAP = {
             'algorithms': 'algorithms',
@@ -56,40 +57,67 @@ class SkillTreeView(APIView):
             'webdev': 'web-dev',
             'aiml': 'ai-ml',
         }
-        
+
+        # ── Batch-load all data to eliminate N+1 queries ──────────────────────
+        # Force evaluation so we have a stable list of IDs.
+        skills = list(skills)
+        skill_ids = [s.id for s in skills]
+
+        # 1 query: all SkillProgress rows for this user across all visible skills
+        user_progress_map = {
+            sp.skill_id: sp.status
+            for sp in SkillProgress.objects.filter(
+                user=request.user,
+                skill_id__in=skill_ids
+            )
+        }
+
+        # 1 query: all completed skill IDs for this user (used for prereq checks)
+        completed_prereq_ids = set(
+            SkillProgress.objects.filter(
+                user=request.user,
+                status='completed'
+            ).values_list('skill_id', flat=True)
+        )
+
+        # 1 query: quest count per skill
+        quest_counts = {
+            row['skill_id']: row['count']
+            for row in (
+                Quest.objects.filter(skill_id__in=skill_ids)
+                .values('skill_id')
+                .annotate(count=Count('id'))
+            )
+        }
+        # ─────────────────────────────────────────────────────────────────────
+
         nodes = []
         edges = []
 
         for skill in skills:
-            # Get status for this user
-            try:
-                progress = SkillProgress.objects.get(user=request.user, skill=skill)
-                status_val = progress.status
-            except SkillProgress.DoesNotExist:
-                # Basic check for availability
-                unmet_prereqs = skill.prerequisites.exclude(
-                    user_progress__user=request.user, 
-                    user_progress__status='completed'
-                ).exists()
-                status_val = 'available' if not unmet_prereqs and request.user.xp >= skill.xp_required_to_unlock else 'locked'
+            # Determine user status from pre-fetched map (zero extra queries)
+            if skill.id in user_progress_map:
+                status_val = user_progress_map[skill.id]
+            else:
+                unmet_prereqs = any(
+                    prereq.id not in completed_prereq_ids
+                    for prereq in skill.prerequisites.all()  # uses prefetch cache
+                )
+                status_val = (
+                    'available'
+                    if not unmet_prereqs and request.user.xp >= skill.xp_required_to_unlock
+                    else 'locked'
+                )
 
-            # Get prerequisites with completion status
-            prereq_list = []
-            for prereq in skill.prerequisites.all():
-                try:
-                    prereq_progress = SkillProgress.objects.get(user=request.user, skill=prereq)
-                    prereq_completed = prereq_progress.status == 'completed'
-                except SkillProgress.DoesNotExist:
-                    prereq_completed = False
-                
-                prereq_list.append({
+            # Build prereq list from prefetch cache + completed set (zero extra queries)
+            prereq_list = [
+                {
                     "id": prereq.id,
                     "name": prereq.title,
-                    "completed": prereq_completed
-                })
-
-            # Count linked quests
-            quest_count = skill.quests.count() if hasattr(skill, 'quests') else 0
+                    "completed": prereq.id in completed_prereq_ids,
+                }
+                for prereq in skill.prerequisites.all()
+            ]
 
             nodes.append({
                 "id": skill.id,
@@ -100,10 +128,10 @@ class SkillTreeView(APIView):
                 "status": status_val,
                 "xpRequired": skill.xp_required_to_unlock,
                 "prerequisites": prereq_list,
-                "questCount": quest_count,
+                "questCount": quest_counts.get(skill.id, 0),
             })
 
-            # Create edges from prerequisites
+            # Create edges from prerequisites (uses prefetch cache)
             for prereq in skill.prerequisites.all():
                 edges.append({
                     "source": prereq.id,
@@ -287,8 +315,10 @@ class AutoFillQuestsView(APIView):
             from skills.quest_autofill import QuestAutoFillService
             
             service = QuestAutoFillService()
-            result = service.autofill_quests_for_tree(tree_id)
-            
+            # FIX: was calling non-existent method autofill_quests_for_tree;
+            # the correct method is execute_autofill.
+            result = service.execute_autofill(str(tree_id))
+
             return Response(result, status=status.HTTP_202_ACCEPTED)
             
         except ValueError as e:

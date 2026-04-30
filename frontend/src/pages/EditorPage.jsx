@@ -1,4 +1,4 @@
-1/**
+/**
  * SkillTree AI - Editor Page
  * Full-featured code editor with Monaco, quest context, AI feedback, and submission polling.
  */

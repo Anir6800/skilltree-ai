@@ -145,7 +145,8 @@ export async function getRecommendedSkills() {
  * @returns {Promise<Object>} Radar data with 5 categories and mastery percentages
  */
 export async function getSkillRadar() {
-  const response = await api.get(`${API_ENDPOINTS.SKILLS_LIST}radar/`);
+  // Use absolute path — avoids double-slash from concatenating a base with trailing slash.
+  const response = await api.get('/api/skills/radar/');
   return response.data;
 }
 

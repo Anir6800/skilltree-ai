@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, AlertCircle, TrendingUp, ArrowUpDown } from 'lucide-react';
 import api from '../api/api';
@@ -28,6 +28,7 @@ const SORT_OPTIONS = [
  */
 function QuestPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [quests, setQuests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,15 +36,18 @@ function QuestPage() {
     type: null,
     difficulty: null,
     status: null,
+    unlocked: false,
   });
   const [sortBy, setSortBy] = useState('xp');
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const skillId = searchParams.get('skill_id');
+
   // Fetch quests
   useEffect(() => {
     fetchQuests();
-  }, [filters]);
+  }, [filters, skillId]);
 
   const fetchQuests = async () => {
     setIsLoading(true);
@@ -51,9 +55,11 @@ function QuestPage() {
 
     try {
       const params = {};
+      if (skillId) params.skill_id = skillId;
       if (filters.type) params.type = filters.type;
       if (filters.difficulty) params.difficulty = filters.difficulty;
       if (filters.status) params.status = filters.status;
+      if (filters.unlocked) params.unlocked = 'true';
 
       const response = await api.get('/api/quests/', { params });
       

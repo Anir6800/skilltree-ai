@@ -79,6 +79,21 @@ class QuestListView(generics.ListAPIView):
                     submissions__user=user
                 ).distinct()
 
+        # Filter by unlocked
+        unlocked_filter = self.request.query_params.get('unlocked')
+        if unlocked_filter == 'true':
+            from skills.models import SkillProgress
+            from skills.services import SkillUnlockService
+            # Fast lookup of skills already unlocked
+            unlocked_skill_ids = set(
+                SkillProgress.objects.filter(user=user).exclude(status='locked').values_list('skill_id', flat=True)
+            )
+            # Find skills that can be unlocked but aren't in SkillProgress yet
+            for skill in SkillUnlockService.get_unlockable_skills(user):
+                unlocked_skill_ids.add(skill.id)
+            
+            queryset = queryset.filter(skill_id__in=unlocked_skill_ids)
+
         return queryset.order_by('-xp_reward', 'id')
 
 
@@ -421,7 +436,6 @@ def _evaluate_synchronously(submission):
             if not already_awarded:
                 xp_earned = int(quest.xp_reward * quest.difficulty_multiplier)
                 user.xp += xp_earned
-                user.save(update_fields=['xp', 'level'])
 
                 from users.models import XPLog
                 XPLog.objects.create(
@@ -440,7 +454,11 @@ def _evaluate_synchronously(submission):
                 elif user.last_active != today:
                     user.streak_days = 1
                 user.last_active = today
-                user.save(update_fields=['streak_days', 'last_active'])
+                # FIX: Call save() without update_fields so the User.save() override
+                # runs and auto-computes level = (xp // 500) + 1.
+                # A targeted save with update_fields=['xp', 'level'] bypasses the
+                # override, causing level to remain stale indefinitely.
+                user.save()
 
     except Exception as e:
         logger.error(f"Synchronous evaluation failed for submission {submission.id}: {e}", exc_info=True)

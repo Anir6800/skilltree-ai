@@ -1,301 +1,385 @@
-# SkillTree AI - Immersive Developer Learning Platform
+<div align="center">
+  <img src="https://via.placeholder.com/150" alt="SkillTree AI Logo" width="150" height="150" />
+  
+  # SkillTree AI
+  
+  **An immersive, AI-driven gamified learning platform for developers.**
+  
+  [![Python Version](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://python.org)
+  [![Django Version](https://img.shields.io/badge/Django-5.x-092E20.svg)](https://djangoproject.com)
+  [![React Version](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev)
+  [![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)](https://docker.com)
+  [![Vector DB](https://img.shields.io/badge/ChromaDB-Vector_Store-FF6B6B.svg)](https://trychroma.com)
+  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+</div>
 
-A gamified, AI-powered developer learning platform that combines skill trees, real-time multiplayer, and intelligent code evaluation to create an engaging educational experience.
+---
 
-## 🌟 Features
+## 1. Project Introduction
 
-### Core Learning System
-- **Skill Tree Architecture** - Visual progression system with DAG-based prerequisites
-- **Quest-Based Learning** - Hands-on coding challenges with automated testing
-- **XP & Leveling** - Player progression with 500 XP per level threshold
-- **Daily Streaks** - Consistency rewards with streak tracking
-- **Personalized Curriculum** - AI-generated weekly learning plans
+**SkillTree AI** is a production-grade, AI-powered gamified learning platform designed to revolutionize developer education. By combining dynamic **skill trees**, an interconnected **quest system**, and an intelligent **AI orchestration pipeline**, the platform delivers a highly personalized, immersive learning experience.
 
-### AI-Powered Evaluation
-- **Three-Layer AI Detection** - Embedding similarity (35%), LLM classification (45%), heuristic analysis (20%)
-- **RAG-Based Code Evaluation** - ChromaDB context retrieval with LM Studio integration
-- **Automated Code Execution** - Secure Docker sandbox for Python, JavaScript, C++, Java, Go
-- **AI Feedback Engine** - Detailed code quality analysis with pros/cons/suggestions
+### Vision and Purpose
+Traditional learning platforms offer linear, static progression. SkillTree AI breaks this paradigm by employing directed acyclic graphs (DAGs) to map out learning journeys, allowing learners to traverse dynamic skill trees shaped by their abilities. Our goal is to make learning to code as engaging as playing an RPG, powered by state-of-the-art Local AI inference and vector-based semantic search.
 
-### Multiplayer & Social
-- **Real-Time Arena** - Competitive coding matches with WebSocket support
-- **Leaderboard System** - Redis-backed global and weekly rankings
-- **Mentor System** - AI-driven hints and explanations
-- **Match History** - Track performance across all encounters
+### Key Capabilities
+- **AI-Driven Curriculum:** Fully automated generation of skill graphs tailored to user goals.
+- **RAG-Assisted Evaluation:** AI analyzes code submissions not just for correctness, but for readability, style, and heuristics.
+- **Real-Time Multiplayer Arena:** Compete against other developers in real-time coding matches.
+- **Plagiarism & AI-Detection:** A sophisticated three-layer detection pipeline using semantic matching, LLM analysis, and heuristic checks.
 
-### Admin & Content Management
-- **Admin Panel** - Full CRUD for skills, quests, and content
-- **Assessment Engine** - MCQ, code challenges, and open-ended questions
-- **Content Review** - AI-assisted content quality validation
-- **Flagged Submissions** - AI cheating detection workflow with admin review
+### Architecture Philosophy
+Our architecture follows strict data normalization in the relational database (PostgreSQL), heavily integrates asynchronous processing for expensive AI/Vector operations (Celery + Redis), and implements eventual consistency strategies with our vector store (ChromaDB).
 
-## 🛠 Technology Stack
+---
 
-### Backend (Django)
-- **Framework**: Django 5.x with Channels for WebSockets
-- **Database**: PostgreSQL (production) / SQLite (development)
-- **Caching**: Redis for leaderboards and sessions
-- **Task Queue**: Celery for async processing
-- **AI Integration**: LM Studio (OpenAI-compatible API)
-- **Vector DB**: ChromaDB for RAG-based code evaluation
-- **Authentication**: JWT (SimpleJWT) with token refresh
-- **Code Execution**: Docker sandbox with resource limits
-- **API**: Django REST Framework
+## 2. Feature Overview
 
-### Frontend (React)
-- **Framework**: React 19 with React Router v7
-- **Styling**: Tailwind CSS 4 with custom animations
-- **3D Graphics**: Three.js with React Three Fiber
-- **State Management**: Zustand
-- **UI Library**: Custom components with Framer Motion
-- **Code Editor**: Monaco Editor
-- **Real-Time**: WebSocket connections for multiplayer
+### AI Skill Tree Generation
+The platform leverages LLMs to dynamically generate complex DAGs representing learning paths. Trees start as "stubs" and are progressively hydrated through asynchronous workers, ensuring zero UI blocking during heavy generation phases.
 
-### DevOps & Infrastructure
-- **Containerization**: Docker for code execution
-- **Deployment**: Production-ready with security headers
-- **Environment**: .env-based configuration
-- **Monitoring**: Celery beat for scheduled tasks
+### Quest Progression System
+Hands-on coding challenges are tied to specific skill nodes. Quests feature a rigorous evaluation sandbox (Docker) followed by semantic analysis, returning highly detailed feedback to the user and dynamically adjusting future difficulty (Bayesian scoring).
 
-## 📁 Project Structure
+### Semantic Search & ChromaDB Integration
+All core textual data (Skills, Quests) is converted to vector embeddings and synchronized with ChromaDB. This powers context-aware retrieval, intelligent RAG pipelines for code evaluation, and similarity matching to detect duplicate content.
 
+### AI Pipeline Orchestration
+An asynchronous, event-driven pipeline orchestrates LLM calls to local inference engines (LM Studio). This system handles prompt lifecycles, structured JSON outputs, robust retry handling, and fallback mechanisms on timeout or generation failure.
+
+### Progress Tracking & Achievements
+Progression is gamified through XP, Levels (calculated dynamically: `(xp // 500) + 1`), streak counting, and an extensible badge issuance system powered by dynamic JSON criteria.
+
+### Real-Time Synchronization
+Powered by Django Channels and Redis, WebSocket connections provide real-time updates for multiplayer coding arenas, leaderboard positioning, and asynchronous task completion (e.g., "Your code has been evaluated!").
+
+### Motion & Glassmorphism Design
+The React frontend leverages Three.js for interactive skill node mapping and Framer Motion for buttery-smooth glassmorphic UI interactions, ensuring a premium, immersive user experience.
+
+---
+
+## 3. Architecture Overview
+
+SkillTree AI is distributed across several key services, orchestrated via Docker.
+
+```mermaid
+graph TD
+    Client((Client App\nReact / Zustand))
+    
+    subgraph Django Backend
+        API[Django REST Framework]
+        WS[Django Channels]
+        ORM[Django ORM]
+    end
+    
+    subgraph Data Layer
+        PG[(PostgreSQL)]
+        Redis[(Redis Cache/Broker)]
+        Chroma[(ChromaDB Vector Store)]
+    end
+    
+    subgraph AI & Execution Layer
+        Celery[Celery Workers]
+        LM[LM Studio / LLM API]
+        Sandbox[Docker Execution Sandbox]
+    end
+
+    Client <-->|HTTPS / REST| API
+    Client <-->|WSS| WS
+    API <--> ORM
+    WS <--> Redis
+    ORM <--> PG
+    API -->|Offload Task| Redis
+    Redis -->|Consume Task| Celery
+    Celery <--> LM
+    Celery <--> Chroma
+    Celery <--> Sandbox
+    Celery -.->|Update State| ORM
 ```
+
+### Request Lifecycle Example (Code Submission)
+1. User submits code to `/api/quests/{id}/submit/`.
+2. API validates and saves a `QuestSubmission` record, triggering an `ExecutionTask`.
+3. Celery worker executes the code in the Docker sandbox.
+4. If successful, another task queries ChromaDB for contextual hints, and pings LM Studio for code review.
+5. AI results are saved to `EvaluationResult` and `StyleReport`.
+6. Frontend is notified via WebSocket.
+
+---
+
+## 4. Tech Stack
+
+### Frontend
+| Technology | Version | Purpose |
+| :--- | :--- | :--- |
+| **React** | 19.x | Component-based UI framework |
+| **Tailwind CSS** | 4.x | Utility-first styling for glassmorphism |
+| **Framer Motion** | 11.x | Advanced micro-animations |
+| **Zustand** | 5.x | Lightweight global state management |
+| **Three.js / R3F** | Latest | 3D rendering of the Skill Tree |
+
+### Backend & Infrastructure
+| Technology | Version | Purpose |
+| :--- | :--- | :--- |
+| **Django** | 5.x | Core relational backend framework |
+| **PostgreSQL** | 16.x | Primary relational source of truth |
+| **Redis** | 7.x | Celery broker, cache, WebSocket layer |
+| **Celery** | 5.x | Asynchronous task orchestration |
+| **ChromaDB** | 0.4.x | Vector database for embeddings |
+| **LM Studio** | Local | Local OpenAI-compatible LLM inference |
+| **Docker** | Latest | Containerization & isolated execution |
+
+---
+
+## 5. Monorepo Structure
+
+```text
 skilltree-ai/
-├── backend/
-│   ├── admin_panel/          # Admin content & assessment management
-│   ├── ai_detection/         # Three-layer AI code detection
-│   ├── ai_evaluation/        # RAG-based code evaluation
-│   ├── auth_app/             # User authentication & JWT
-│   ├── core/                 # Django settings, Celery, clients
-│   ├── executor/             # Code execution pipeline
-│   ├── leaderboard/          # Redis-backed rankings
-│   ├── mentor/               # AI mentoring system
-│   ├── multiplayer/          # Real-time matches
-│   ├── quests/               # Quest & submission models
-│   ├── skills/               # Skill tree & progress
-│   ├── users/                # Custom user model & profiles
-│   └── manage.py
-├── frontend/
+├── backend/                  # Django REST framework backend
+│   ├── ai_detection/         # Plagiarism & AI-generation pipelines
+│   ├── ai_evaluation/        # RAG and code review logic
+│   ├── core/                 # Django settings, celery app, base configs
+│   ├── executor/             # Dockerized code sandbox interface
+│   ├── quests/               # Quests, submissions, test cases
+│   ├── skills/               # Skill models, graphs, vector synchronization
+│   ├── users/                # Authentication, profiles, achievements
+│   └── manage.py             # Django entrypoint
+├── frontend/                 # React frontend application
 │   ├── src/
-│   │   ├── api/              # API clients
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/            # Page components
-│   │   ├── store/            # Zustand state stores
-│   │   ├── hooks/            # Custom React hooks
-│   │   └── utils/            # Utilities & constants
-│   └── package.json
-└── README.md
+│   │   ├── api/              # Axios instances & interceptors
+│   │   ├── components/       # Shared UI, glassmorphic cards
+│   │   ├── pages/            # Page layouts (Quest, SkillTree, Arena)
+│   │   ├── store/            # Zustand global state
+│   │   └── utils/            # Helpers, constants, formatters
+├── docs/                     # Comprehensive architecture documentation
+│   └── database/             # ERD, schema rules, vector architecture
+├── scripts/                  # CI/CD and DB seeding utilities
+├── docker-compose.yml        # Production/Dev service orchestration
+└── README.md                 # This file
 ```
 
-## 🚀 Getting Started
+---
+
+## 6. Environment Setup
 
 ### Prerequisites
 - Python 3.12+
 - Node.js 20+
-- Docker (for code execution)
-- PostgreSQL (optional, SQLite works for dev)
-- Redis (optional, in-memory for dev)
-- LM Studio (for AI features)
+- Docker Engine & Docker Compose
+- LM Studio (if using local AI inference)
 
-### Installation
+### 1. Database & Cache Services
+Run the necessary stateful services using Docker:
+```bash
+docker-compose up -d db redis chromadb
+```
 
-#### Backend
+### 2. Backend Setup
 ```bash
 cd backend
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
+
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
 ```
 
-#### Frontend
+In a separate terminal, start the Celery worker:
+```bash
+celery -A core worker -l info
+```
+
+### 3. Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### Environment Variables (.env)
-```env
-# Django
-SECRET_KEY=your-secret-key
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
-
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/skilltree
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-USE_REDIS_CHANNELS=True
-
-# LM Studio
-LM_STUDIO_URL=http://localhost:1234/v1
-LM_STUDIO_MODEL=openai/gpt-oss-20b
-
-# ChromaDB
-CHROMA_PATH=./chroma_db
-
-# Security
-SECURE_SSL_REDIRECT=False
-SESSION_COOKIE_SECURE=False
-CSRF_COOKIE_SECURE=False
-
-# CORS
-CORS_ALLOWED_ORIGINS=http://localhost:3000
-```
-
-## 🎮 Key Workflows
-
-### Code Submission Pipeline
-1. User submits code via quest or assessment
-2. Celery task triggers: `evaluate_submission`
-3. Docker sandbox executes test cases
-4. LM Studio provides AI code quality feedback
-5. Three-layer AI detection runs
-6. XP awarded if passed (first-time only)
-7. Leaderboard score updated
-8. WebSocket notification sent
-
-### AI Detection Pipeline
-1. **Layer 1**: Embedding similarity (ChromaDB) - 35%
-2. **Layer 2**: LLM classification - 45%
-3. **Layer 3**: Heuristic analysis - 20%
-4. Final score > 70% → Flagged for admin review
-5. Admin can approve (award XP) or override (revoke XP)
-
-### Assessment Evaluation
-- **MCQ**: Instant comparison with correct answer
-- **Code**: Docker execution with test case pass rate
-- **Open-Ended**: LM Studio semantic analysis against criteria
-
-## 📊 Database Models
-
-### Core Models
-- **User** - Custom auth with XP, level, streak
-- **Skill** - Learning nodes with prerequisites (DAG)
-- **Quest** - Coding challenges with test cases
-- **QuestSubmission** - User attempts with execution results
-
-### AI Models
-- **DetectionLog** - AI detection results per submission
-- **EvaluationResult** - Detailed AI feedback
-
-### Admin Models
-- **AdminContent** - Learning content with AI review
-- **AssessmentQuestion** - MCQ, code, open-ended questions
-- **AssessmentSubmission** - User answers with evaluation
-
-### Multiplayer Models
-- **Match** - Real-time competitive sessions
-- **MatchParticipant** - Player participation tracking
-
-### Leaderboard Models
-- **LeaderboardSnapshot** - Historical rankings
-
-## 🔌 API Endpoints
-
-### Authentication
-- `POST /api/token/` - Login
-- `POST /api/token/refresh/` - Refresh token
-- `POST /api/auth/register/` - Register
-
-### Skills & Quests
-- `GET /api/skills/` - List skills
-- `GET /api/skills/{id}/` - Skill details
-- `GET /api/quests/` - List quests
-- `POST /api/quests/{id}/submit/` - Submit code
-
-### Execution
-- `POST /api/execute/` - Execute code
-- `POST /api/execute/test/` - Run test cases
-- `GET /api/execute/status/{id}/` - Check status
-
-### Multiplayer
-- `GET /api/matches/` - List matches
-- `POST /api/matches/` - Create match
-- `POST /api/matches/join/` - Join match
-
-### Leaderboard
-- `GET /api/leaderboard/` - Global rankings
-- `GET /api/leaderboard/weekly/` - Weekly rankings
-- `GET /api/leaderboard/my-rank/` - User rank
-
-### Admin
-- `GET /api/admin/skills/` - Skill management
-- `GET /api/admin/quests/` - Quest management
-- `POST /api/admin/submissions/{id}/review/` - Review flagged
-
-### AI Detection
-- `GET /api/ai-detection/admin/flagged-submissions/` - List flagged
-- `POST /api/ai-detection/submissions/{id}/explain/` - Submit explanation
-
-## 🎨 Frontend Features
-
-### Visual Design
-- 3D skill nexus with Three.js
-- Framer Motion animations
-- Glassmorphism UI
-- Gradient text effects
-- Responsive sidebar navigation
-
-### Pages
-- **Dashboard** - Overview with stats
-- **Skill Tree** - Interactive DAG visualization
-- **Quest Page** - Code editor with Monaco
-- **Arena** - Real-time multiplayer
-- **Leaderboard** - Top players
-- **Mentor** - AI chat assistant
-- **Admin Panel** - Content management
-
-## 🧪 Testing
-
-### Backend
-```bash
-cd backend
-python manage.py test
-```
-
-### Frontend
-```bash
-cd frontend
-npm run test
-npm run lint
-```
-
-## 📝 Development
-
-### Code Quality
-- Python: Black, isort, flake8
-- JavaScript: ESLint, Prettier
-- Type hints: Python, TypeScript (optional)
-
-### Deployment
-- Production: `DEBUG=False`, `SECURE_SSL_REDIRECT=True`
-- Static files: `python manage.py collectstatic`
-- Database: PostgreSQL recommended
-- Redis: Required for production leaderboards
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - See LICENSE file for details
-
-## 🙏 Acknowledgments
-
-- LM Studio for AI inference
-- ChromaDB for vector storage
-- Django, React, and the open-source community
+### 4. LM Studio Setup
+1. Open LM Studio and download an embedding model (e.g., `nomic-embed-text-v1.5`) and a chat model (e.g., `Llama-3-8B-Instruct`).
+2. Start the Local Server in LM Studio (default port `1234`).
+3. Ensure CORS is enabled in LM Studio settings.
 
 ---
 
-**Built with passion for developer education and gamified learning**
+## 7. Environment Variables
+
+Create a `.env` file in the `backend/` directory:
+
+| Variable | Description | Required | Default |
+| :--- | :--- | :---: | :--- |
+| `SECRET_KEY` | Django cryptographic key | Yes | - |
+| `DEBUG` | Enable development mode | Yes | `True` |
+| `DATABASE_URL` | PostgreSQL connection string | Yes | `postgres://user:pass@localhost:5432/db` |
+| `REDIS_URL` | Redis connection string | Yes | `redis://localhost:6379/0` |
+| `LM_STUDIO_URL` | Local inference API endpoint | No | `http://localhost:1234/v1` |
+| `LM_STUDIO_MODEL` | The LLM to use for generation | No | `llama-3-8b-instruct` |
+| `CHROMA_PATH` | Path/URL to ChromaDB instance | Yes | `./chroma_db` |
+| `CORS_ALLOWED_ORIGINS` | Permitted frontend origins | Yes | `http://localhost:3000` |
+
+*Security Note: Never commit production `.env` files. Ensure `DEBUG=False` in production to prevent data leakage.*
+
+---
+
+## 8. Development Workflow
+
+- **Database Migrations:** All manual schema changes must be codified into Django migrations. Run `python manage.py makemigrations` after altering models.
+- **Code Execution Testing:** The execution module requires Docker running on the host machine to spin up secure isolated containers.
+- **Vector Synchronization:** Vector embeddings sync asynchronously. If you need to force sync, run `python manage.py sync_vectors --force`.
+- **Cache Invalidation:** Restart the Redis container or run `redis-cli flushall` to clear ephemeral leaderboard/session states during testing.
+- **Linting & Formatting:** Python uses `black` and `flake8`. Frontend uses `eslint` and `prettier`.
+
+---
+
+## 9. Database Documentation Summary
+
+Our database strictly adheres to Third Normal Form (3NF) for source-of-truth records, utilizing controlled denormalization via Celery workers for read-heavy frontend metrics.
+- **Progression Systems:** Driven by `User`, `QuestSubmission`, and `SkillProgress`. Level boundaries are mathematical derivations `(xp // 500) + 1`.
+- **DAG Relationships:** The `SkillPrerequisite` model enforces the Directed Acyclic Graph topology of the Skill Trees.
+- **Vector Sync:** The `EmbeddingRecord` polymorphic table hashes source data text. Upon changes, hashes mismatch, triggering asynchronous ChromaDB re-embeddings.
+
+*For full details, see [DATABASE_SCHEMA.md](docs/database/DATABASE_SCHEMA.md) and [VECTOR_DB_ARCHITECTURE.md](docs/database/VECTOR_DB_ARCHITECTURE.md).*
+
+---
+
+## 10. AI Pipeline Documentation
+
+The AI orchestration pipeline is built to handle the inherent unreliability of LLM inference:
+
+```mermaid
+stateDiagram-v2
+    [*] --> PendingTask
+    PendingTask --> PromptCompilation : Worker Picks Up
+    PromptCompilation --> RAGContextFetch : Query ChromaDB
+    RAGContextFetch --> LLMRequest : POST to LM Studio
+    LLMRequest --> JSONValidation
+    JSONValidation --> Success : Valid JSON
+    JSONValidation --> Retry : Invalid Format/Timeout
+    Retry --> LLMRequest : Attempt < Max
+    Retry --> Failed : Max Retries
+    Success --> SaveToDB
+    Failed --> SaveToDB
+```
+
+- **Validation:** Pydantic models validate LLM JSON outputs.
+- **Fallback Handling:** If structured parsing fails, a heuristic fallback executes regex-based extraction.
+- **Semantic Enrichment:** ChromaDB acts as a vector cache for historical student solutions to inject into the LLM context window.
+
+---
+
+## 11. API Documentation Summary
+
+The platform uses a RESTful JSON API via Django REST Framework.
+- **Authentication:** JWT Bearer tokens via SimpleJWT. Include `Authorization: Bearer <token>`.
+- **Pagination:** Global limit-offset pagination (default 20, max 100).
+- **Responses:** Standardized enveloped responses: `{"data": {}, "meta": {}, "error": null}`.
+
+**Sample Request (Evaluate Code):**
+```json
+POST /api/quests/12/submit/
+{
+  "code": "def fib(n):\n    if n <= 1: return n\n    return fib(n-1) + fib(n-2)",
+  "language": "python"
+}
+```
+
+**Sample Response:**
+```json
+{
+  "status": "queued",
+  "task_id": "c1a2-4f32-8b9a...",
+  "message": "Submission received, entering execution sandbox."
+}
+```
+
+---
+
+## 12. Security Documentation
+
+- **Docker Sandbox Execution:** User code runs inside isolated Alpine Linux containers with strict `mem_limit`, network disabled (`network_mode: none`), and standard timeout boundaries (max 5 seconds).
+- **Prompt Injection Defense:** User code is strictly sanitized before injection into system prompts. Instructions explicitly instruct the model to ignore meta-instructions within the code blocks.
+- **API Security:** CORS configured strictly. CSRF cookies used where applicable. Rate-limiting enforced via Redis to prevent brute-forcing sandbox evaluations.
+- **Data Protection:** All PII is restricted. Hashes are used for vector sync comparisons.
+
+---
+
+## 13. Performance & Scalability
+
+- **Database Indexes:** Compound indexes placed on frequent lookup patterns (e.g., `[user, skill, status]`).
+- **Caching:** Leaderboards are stored exclusively in Redis Sorted Sets (`ZADD`, `ZREVRANGE`) ensuring $O(\log(N))$ insertions and blazingly fast global ranking reads.
+- **AI Asynchrony:** No AI generation blocks an HTTP thread. Long-polling or WebSockets inform the frontend upon Celery task completion.
+- **Vector DB Scaling:** ChromaDB runs as a standalone microservice, easily swappable for a managed service (like Pinecone) in high-scale environments.
+
+---
+
+## 14. Testing Strategy
+
+- **Backend:** `pytest` paired with `factory_boy` for model generation. Unit tests mock the LLM endpoints and Docker engine to ensure fast CI runs.
+- **AI Pipeline:** Deterministic prompt tests. We inject known inputs and test the JSON parsing boundaries.
+- **Vector DB:** Isolated testing collections ensure test suites don't pollute the dev/prod vector space.
+- **Frontend:** Vitest and React Testing Library for component rendering and state logic (Zustand).
+
+---
+
+## 15. Deployment Documentation
+
+### Docker Deployment
+The repository includes a production-ready `docker-compose.prod.yml`:
+1. Build the images: `docker-compose -f docker-compose.prod.yml build`
+2. Run migrations: `docker-compose -f docker-compose.prod.yml run web python manage.py migrate`
+3. Bring up stack: `docker-compose -f docker-compose.prod.yml up -d`
+
+### Scaling Considerations
+- **Stateless Web:** The Django backend is stateless (sessions in Redis), allowing horizontal scaling behind a Load Balancer.
+- **Celery Scaling:** Add more worker nodes to the RabbitMQ/Redis broker queue to process simultaneous code evaluations faster.
+
+---
+
+## 16. Troubleshooting Guide
+
+| Issue | Cause | Fix / Debugging Command |
+| :--- | :--- | :--- |
+| **Docker Sandbox Fails** | Missing local docker engine context | Ensure Docker Desktop/Engine is running. Check permissions. |
+| **AI Timeout (504/408)** | LM Studio overwhelmed or not running | Increase Celery timeout. Check LM studio logs. `curl http://localhost:1234/v1/models` |
+| **Vector Desync / Chroma Error** | SQLite lock or stale hash mapping | Run `python manage.py sync_vectors --force` to repair mappings. |
+| **Redis Connection Refused** | Redis container down | `docker-compose up -d redis` |
+| **Frontend Build Fails** | React 19 / Node mismatch | Ensure Node >= 20. Run `npm ci` to reset node_modules. |
+| **Celery Tasks Pending** | Worker not started | Run `celery -A core worker -l info` in a new terminal. |
+
+---
+
+## 17. Developer Onboarding
+
+Welcome to SkillTree AI! To get up to speed:
+1. **Read the Architecture Rules:** Start with `docs/database/DATABASE_SCHEMA.md` to understand our 3NF policy.
+2. **Understand the Async Flow:** Trace the `/submit/` API endpoint to see how HTTP requests delegate to Celery and subsequently to Docker/LM Studio.
+3. **Coding Standards:** We enforce strict separation of concerns. Do not put business logic in Django views; place it in the `/services/` layer.
+4. **Contributions:** Never write blocking code in a view. Always use Celery for network I/O to external APIs. Make sure to provide comprehensive docstrings.
+
+---
+
+## 18. Future Scalability Notes
+
+- **Microservice Extraction:** The AI Execution and Sandbox pipelines are decoupled enough to be extracted into Go/Rust microservices for vastly reduced overhead.
+- **Cloud Vector Stores:** The `ChromaDBClient` is interface-driven. Moving to Pinecone or Qdrant requires only swapping the implementation class, without touching the `EmbeddingRecord` models.
+- **Distributed Event Bus:** Shifting from Redis to Kafka for enterprise-scale event routing of matchmaking and AI events.
+
+---
+
+## 19. Documentation References
+
+For deep dives into specific system modules, refer to the official documentation library:
+- 🗄️ [DATABASE_SCHEMA.md](docs/database/DATABASE_SCHEMA.md) - Deep dive into PostgreSQL 3NF.
+- 🗺️ [ERD.md](docs/database/ERD.md) - Entity Relationship visual maps.
+- 📊 [DATABASE_VISUALIZATION.md](docs/database/DATABASE_VISUALIZATION.md) - State diagrams and flowcharts.
+- 🧠 [VECTOR_DB_ARCHITECTURE.md](docs/database/VECTOR_DB_ARCHITECTURE.md) - ChromaDB mapping definitions.
+- 🤖 [AI_PIPELINE_STORAGE.md](docs/database/AI_PIPELINE_STORAGE.md) - Prompt lifecycle, retry policies, and schema structures.
+
+---
+<div align="center">
+  <b>Built with passion for developer education.</b><br>
+  <i>Empowering learners to build their own paths.</i>
+</div>

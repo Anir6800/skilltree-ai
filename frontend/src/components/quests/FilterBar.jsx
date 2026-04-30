@@ -52,10 +52,10 @@ function FilterBar({ filters, onFilterChange }) {
   };
 
   const handleClearFilters = () => {
-    onFilterChange({ type: null, difficulty: null, status: null });
+    onFilterChange({ type: null, difficulty: null, status: null, unlocked: false });
   };
 
-  const hasActiveFilters = filters.type || filters.difficulty || filters.status;
+  const hasActiveFilters = filters.type || filters.difficulty || filters.status || filters.unlocked;
 
   return (
     <div className="glass-panel p-6 rounded-2xl mb-6">
@@ -163,6 +163,28 @@ function FilterBar({ filters, onFilterChange }) {
                 </motion.button>
               );
             })}
+          </div>
+        </div>
+
+        {/* Visibility Filter */}
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+            Visibility
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onFilterChange({ ...filters, unlocked: !filters.unlocked })}
+              className={cn(
+                "px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-300 border",
+                filters.unlocked
+                  ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+                  : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              Unlocked Quests Only
+            </motion.button>
           </div>
         </div>
       </div>

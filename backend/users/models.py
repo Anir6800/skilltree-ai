@@ -1,20 +1,53 @@
+"""
+Users Domain Models — SkillTree AI
+=====================================
+User                    — Custom AbstractUser with XP/level/streak
+XPLog                   — Append-only XP event log
+Badge / UserBadge       — Achievement badge system
+WeeklyReport            — AI-generated weekly progress narrative
+StudyGroup              — Collaborative group with goals and chat
+OnboardingProfile       — User's onboarding data and AI path preferences
+AdaptiveProfile         — Bayesian ability scoring for difficulty adaptation
+AdaptiveAdjustmentLog   — Normalized log of every adaptive profile change
+UserSkillFlag           — Flags per user-skill relationship (struggling, mastered, etc.)
+"""
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from datetime import date
 
+
+def get_current_year():
+    return date.today().year
+
+
+# ---------------------------------------------------------------------------
+# Core User
+# ---------------------------------------------------------------------------
+
 class User(AbstractUser):
     """
-    SkillTree AI Custom User model.
-    Tracks player progression, XP, and immersive attributes.
+    SkillTree AI custom user model.
+
+    XP / Level:
+        level is ALWAYS computed from xp via save() override:
+            level = (xp // 500) + 1
+        NEVER call save(update_fields=['xp', 'level']) — it bypasses the override.
+        Always call save() or save(update_fields=['xp', 'streak_days', 'last_active'])
+        and let the override recompute level.
+
+    Streak:
+        streak_days — consecutive calendar days with at least one passed quest.
+        last_active — date of last quest pass. Used to detect streak breaks.
     """
     ROLE_CHOICES = [
         ('student', 'Student'),
         ('admin', 'Admin'),
         ('moderator', 'Moderator'),
     ]
-    
+
     xp = models.IntegerField(default=0)
     level = models.IntegerField(default=1)
     streak_days = models.IntegerField(default=0)
@@ -23,36 +56,52 @@ class User(AbstractUser):
     avatar_url = models.CharField(max_length=500, default='', blank=True)
 
     def save(self, *args, **kwargs):
-        # Auto-compute level from XP: level = xp // 500 + 1
+        # Invariant: level is always derived from XP.
+        # This must run on every save — never bypass with update_fields=['level'].
         self.level = (self.xp // 500) + 1
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.username} (Lvl {self.level})"
 
+
+# ---------------------------------------------------------------------------
+# XP Event Log
+# ---------------------------------------------------------------------------
+
 class XPLog(models.Model):
     """
-    Log of XP gained by a user. Used for history charts.
+    Append-only log of XP events per user.
+    Used for history charts and auditing.
+    Never update or delete rows — always append.
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='xp_logs')
     amount = models.IntegerField()
-    source = models.CharField(max_length=200) # e.g. "Quest: Python Basics"
+    source = models.CharField(max_length=200, help_text='e.g. "Quest: Python Basics"')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['user', '-created_at'], name='xplog_user_created_idx'),
         ]
 
     def __str__(self):
-        return f"{self.user.username} +{self.amount} XP from {self.source}"
+        return f"{self.user.username} +{self.amount} XP — {self.source}"
 
+
+# ---------------------------------------------------------------------------
+# Badge System
+# ---------------------------------------------------------------------------
 
 class Badge(models.Model):
     """
-    Achievement badge definition.
-    Defines badge metadata and unlock conditions.
+    Badge definition — the template for an achievable badge.
+
+    unlock_condition JSON structure:
+        {"event_type": "quest_pass", "criteria": {"count": 10}}
+        {"event_type": "streak", "criteria": {"days": 7}}
+        {"event_type": "skill_complete", "criteria": {"category": "algorithms"}}
     """
     RARITY_CHOICES = [
         ('common', 'Common'),
@@ -68,15 +117,15 @@ class Badge(models.Model):
     rarity = models.CharField(max_length=20, choices=RARITY_CHOICES, default='common')
     unlock_condition = models.JSONField(
         default=dict,
-        help_text="Condition to unlock badge: {event_type, criteria}"
+        help_text='Structured unlock condition — see docstring for schema.',
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['rarity', 'name']
         indexes = [
-            models.Index(fields=['slug']),
-            models.Index(fields=['rarity']),
+            models.Index(fields=['slug'], name='badge_slug_idx'),
+            models.Index(fields=['rarity'], name='badge_rarity_idx'),
         ]
 
     def __str__(self):
@@ -85,8 +134,8 @@ class Badge(models.Model):
 
 class UserBadge(models.Model):
     """
-    User's earned badge.
-    Tracks when user earned a badge and whether they've seen it.
+    A badge earned by a user.
+    `seen = False` drives the "new badge" notification indicator.
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='badges')
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE, related_name='user_badges')
@@ -97,27 +146,36 @@ class UserBadge(models.Model):
         unique_together = ('user', 'badge')
         ordering = ['-earned_at']
         indexes = [
-            models.Index(fields=['user', 'seen']),
-            models.Index(fields=['badge']),
+            # "show unseen badges for user" — notification indicator query
+            models.Index(fields=['user', 'seen'], name='userbadge_user_seen_idx'),
+            models.Index(fields=['badge'], name='userbadge_badge_idx'),
         ]
 
     def __str__(self):
-        return f"{self.user.username} - {self.badge.name}"
+        return f"{self.user.username} — {self.badge.name}"
 
 
-
-def get_current_year():
-    return date.today().year
+# ---------------------------------------------------------------------------
+# Weekly Report
+# ---------------------------------------------------------------------------
 
 class WeeklyReport(models.Model):
     """
-    Weekly progress report for a user.
-    Generated every Monday with AI narrative and PDF.
+    AI-generated weekly learning summary for a user.
+    Generated every Monday; `pdf_path` is relative to MEDIA_ROOT.
+
+    data JSON: collected metrics snapshot for the week.
+    narrative JSON: AI-generated sections (summary, highlights, challenges).
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='weekly_reports')
     week_number = models.IntegerField(help_text='ISO week number (1-53)')
     year = models.IntegerField(default=get_current_year)
-    pdf_path = models.CharField(max_length=500, help_text='Path to generated PDF file')
+    pdf_path = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        help_text='Relative path to generated PDF under MEDIA_ROOT. Empty if PDF not yet generated.',
+    )
     data = models.JSONField(default=dict, help_text='Collected metrics for the week')
     narrative = models.JSONField(default=dict, help_text='AI-generated narrative sections')
     generated_at = models.DateTimeField(auto_now_add=True)
@@ -127,24 +185,28 @@ class WeeklyReport(models.Model):
         ordering = ['-generated_at']
         unique_together = ('user', 'week_number', 'year')
         indexes = [
-            models.Index(fields=['user', '-generated_at']),
-            models.Index(fields=['week_number', 'year']),
+            models.Index(fields=['user', '-generated_at'], name='weeklyreport_user_idx'),
+            models.Index(fields=['week_number', 'year'], name='weeklyreport_week_idx'),
         ]
 
     def __str__(self):
-        return f"{self.user.username} - Week {self.week_number}/{self.year}"
+        return f"{self.user.username} — Week {self.week_number}/{self.year}"
 
     def mark_viewed(self):
-        """Mark report as viewed."""
+        """Mark report as viewed (idempotent)."""
         if not self.viewed_at:
             self.viewed_at = timezone.now()
             self.save(update_fields=['viewed_at'])
 
 
+# ---------------------------------------------------------------------------
+# Study Groups
+# ---------------------------------------------------------------------------
+
 class StudyGroup(models.Model):
     """
-    Study group for collaborative learning.
-    Members can share goals, chat, and track progress together.
+    Collaborative study group.
+    invite_code — 6-character alphanumeric, globally unique.
     """
     name = models.CharField(max_length=100)
     invite_code = models.CharField(max_length=6, unique=True, db_index=True)
@@ -155,26 +217,24 @@ class StudyGroup(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['invite_code']),
-            models.Index(fields=['created_by']),
+            models.Index(fields=['invite_code'], name='studygroup_code_idx'),
+            models.Index(fields=['created_by'], name='studygroup_creator_idx'),
         ]
 
     def __str__(self):
         return f"{self.name} ({self.invite_code})"
 
     def get_member_count(self):
-        """Get current member count."""
         return self.members.count()
 
     def is_full(self):
-        """Check if group is at max capacity."""
         return self.get_member_count() >= self.max_members
 
 
 class StudyGroupMembership(models.Model):
     """
-    Membership record for a user in a study group.
-    Tracks role and join date.
+    Through-model for User ↔ StudyGroup.
+    role: 'owner' for the group creator, 'member' for everyone else.
     """
     ROLE_CHOICES = [
         ('owner', 'Owner'),
@@ -190,8 +250,8 @@ class StudyGroupMembership(models.Model):
         unique_together = ('group', 'user')
         ordering = ['-joined_at']
         indexes = [
-            models.Index(fields=['group', 'user']),
-            models.Index(fields=['user']),
+            models.Index(fields=['group', 'user'], name='membership_group_user_idx'),
+            models.Index(fields=['user'], name='membership_user_idx'),
         ]
 
     def __str__(self):
@@ -201,7 +261,7 @@ class StudyGroupMembership(models.Model):
 class StudyGroupMessage(models.Model):
     """
     Chat message in a study group.
-    Supports real-time messaging via WebSocket.
+    Supports real-time delivery via Django Channels WebSocket consumers.
     """
     group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name='messages')
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='group_messages')
@@ -211,8 +271,9 @@ class StudyGroupMessage(models.Model):
     class Meta:
         ordering = ['sent_at']
         indexes = [
-            models.Index(fields=['group', 'sent_at']),
-            models.Index(fields=['sender']),
+            # Chronological message load for a group (primary access pattern)
+            models.Index(fields=['group', 'sent_at'], name='groupmsg_group_sent_idx'),
+            models.Index(fields=['sender'], name='groupmsg_sender_idx'),
         ]
 
     def __str__(self):
@@ -221,8 +282,8 @@ class StudyGroupMessage(models.Model):
 
 class StudyGroupGoal(models.Model):
     """
-    Shared skill goal for a study group.
-    Tracks target date and completion status.
+    A shared skill-learning goal for a study group.
+    A group can only have one active goal per skill.
     """
     group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name='goals')
     skill = models.ForeignKey('skills.Skill', on_delete=models.CASCADE, related_name='group_goals')
@@ -231,22 +292,33 @@ class StudyGroupGoal(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['target_date']
         unique_together = ('group', 'skill')
+        ordering = ['target_date']
         indexes = [
-            models.Index(fields=['group', 'target_date']),
-            models.Index(fields=['skill']),
+            models.Index(fields=['group', 'target_date'], name='groupgoal_group_date_idx'),
+            models.Index(fields=['skill'], name='groupgoal_skill_idx'),
         ]
 
     def __str__(self):
-        return f"{self.group.name} - {self.skill.title} by {self.target_date}"
+        return f"{self.group.name} — {self.skill.title} by {self.target_date}"
 
 
-# ── Onboarding Models ────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Onboarding
+# ---------------------------------------------------------------------------
 
 class OnboardingProfile(models.Model):
     """
-    User's onboarding profile with goals, experience, and preferences.
+    User's onboarding preferences, goals, and AI path generation state.
+
+    generated_tree: FK (not a raw UUID) to GeneratedSkillTree, so DB enforces
+    referential integrity. SET_NULL on delete prevents orphaned UUID references.
+
+    category_levels JSON:
+        {"algorithms": "beginner", "ds": "intermediate", "webdev": "advanced", ...}
+
+    selected_interests JSON:
+        ["arrays", "binary_search", "graphs", ...]
     """
     GOAL_CHOICES = [
         ('job_prep', 'Job Preparation'),
@@ -254,97 +326,139 @@ class OnboardingProfile(models.Model):
         ('upskill', 'Upskilling'),
         ('passion', 'Passion Project'),
     ]
-    
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name='onboarding_profile'
-    )
-    
-    # Step 2: Primary Goal
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='onboarding_profile')
     primary_goal = models.CharField(max_length=20, choices=GOAL_CHOICES)
-    
-    # Step 3: Target Role
     target_role = models.CharField(max_length=200)
-    
-    # Step 4: Experience Years
     experience_years = models.IntegerField(default=0)
-    
-    # Step 5: Category Levels (JSON)
-    # {"algorithms": "beginner", "ds": "intermediate", ...}
     category_levels = models.JSONField(default=dict)
-    
-    # Step 6: Selected Interests (JSON)
-    # ["arrays", "binary_search", "graphs", ...]
     selected_interests = models.JSONField(default=list)
-    
-    # Step 7: Weekly Hours
     weekly_hours = models.IntegerField(default=5)
-    
-    # Metadata
     completed_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
-    # AI Path Generation Status
+
+    # AI path generation state
     path_generated = models.BooleanField(default=False)
     generation_started_at = models.DateTimeField(null=True, blank=True)
-    generated_tree_id = models.UUIDField(null=True, blank=True)
+
+    # FK to GeneratedSkillTree — replaces the old raw UUIDField.
+    # SET_NULL ensures this doesn't break if the tree is deleted.
+    generated_tree = models.ForeignKey(
+        'skills.GeneratedSkillTree',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='onboarding_profiles',
+        help_text='The AI-generated skill tree created during onboarding.',
+    )
     generated_topic = models.CharField(max_length=200, blank=True, default='')
-    
+
     class Meta:
         ordering = ['-completed_at']
-    
+        indexes = [
+            models.Index(fields=['user'], name='onboarding_user_idx'),
+            # "find onboarding profiles whose tree is still generating"
+            models.Index(fields=['generated_tree', 'path_generated'], name='onboarding_tree_status_idx'),
+        ]
+
     def __str__(self):
-        return f"{self.user.username} - {self.get_primary_goal_display()}"
+        return f"{self.user.username} — {self.get_primary_goal_display()}"
 
 
-# ── Adaptive Learning Models ─────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Adaptive Learning
+# ---------------------------------------------------------------------------
 
 class AdaptiveProfile(models.Model):
     """
-    Stores adaptive learning profile for a user.
-    Tracks ability score, preferred difficulty, and adjustment history.
+    Bayesian ability scoring for adaptive difficulty selection.
+
+    ability_score: 0.0 (struggling) to 1.0 (advanced).
+    preferred_difficulty: ceil(ability_score × 5), range 1-5.
+    Adjustment history is normalized to AdaptiveAdjustmentLog (not stored inline).
     """
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name='adaptive_profile'
-    )
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='adaptive_profile')
     ability_score = models.FloatField(
         default=0.5,
-        help_text="0.0 (struggling) to 1.0 (advanced), updated via Bayesian formula"
+        help_text='0.0 (struggling) to 1.0 (advanced). Updated via Bayesian formula.',
     )
     preferred_difficulty = models.IntegerField(
         default=3,
-        help_text="Auto-set to ceil(ability_score * 5), range 1-5"
+        help_text='Auto-set to ceil(ability_score × 5). Range 1-5.',
     )
-    adjustment_history = models.JSONField(
-        default=list,
-        help_text="Log of every adjustment with timestamp and reason"
+    last_adjusted = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Adaptive Profile'
+        verbose_name_plural = 'Adaptive Profiles'
+        indexes = [
+            models.Index(fields=['ability_score'], name='adaptive_ability_idx'),
+            models.Index(fields=['preferred_difficulty'], name='adaptive_difficulty_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} — ability={self.ability_score:.2f} diff={self.preferred_difficulty}"
+
+
+class AdaptiveAdjustmentLog(models.Model):
+    """
+    Normalized log of every adaptive profile adjustment.
+
+    Replaces the unbounded `adjustment_history` JSON list that was stored
+    directly on AdaptiveProfile. This table supports:
+        - paginated adjustment history reads
+        - filtering by reason or quest
+        - analytics on difficulty progression over time
+
+    quest: nullable FK — some adjustments are triggered by time-based factors
+    rather than a specific quest.
+    """
+    profile = models.ForeignKey(
+        AdaptiveProfile,
+        on_delete=models.CASCADE,
+        related_name='adjustment_logs',
     )
-    last_adjusted = models.DateTimeField(
-        auto_now=True,
-        help_text="Timestamp of last adaptation"
+    ability_before = models.FloatField()
+    ability_after = models.FloatField()
+    difficulty_before = models.IntegerField()
+    difficulty_after = models.IntegerField()
+    reason = models.CharField(
+        max_length=200,
+        help_text='e.g. "Consecutive failures: 3" or "Streak: 7 days"',
+    )
+    quest = models.ForeignKey(
+        'quests.Quest',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='adaptive_adjustments',
+        help_text='The quest that triggered this adjustment (if any).',
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Adaptive Profile"
-        verbose_name_plural = "Adaptive Profiles"
+        ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['user']),
-            models.Index(fields=['ability_score']),
-            models.Index(fields=['preferred_difficulty']),
+            # "show adjustment history for this user's profile"
+            models.Index(fields=['profile', '-created_at'], name='adaptlog_profile_idx'),
+            # "what adjustments were triggered by quest X?"
+            models.Index(fields=['quest'], name='adaptlog_quest_idx'),
         ]
 
     def __str__(self):
-        return f"{self.user.username} - Ability: {self.ability_score:.2f}, Difficulty: {self.preferred_difficulty}"
+        return (
+            f"{self.profile.user.username}: "
+            f"{self.ability_before:.2f}→{self.ability_after:.2f} "
+            f"({self.reason})"
+        )
 
 
 class UserSkillFlag(models.Model):
     """
-    Flags for user-skill relationships indicating special states.
-    Examples: "too_easy", "struggling", "mastered"
+    Per user-skill adaptive flags.
+    A user can have multiple flags per skill (e.g. both 'struggling' and 'too_easy'
+    are prevented by the unique_together constraint).
     """
     FLAG_CHOICES = [
         ('too_easy', 'Too Easy'),
@@ -352,37 +466,21 @@ class UserSkillFlag(models.Model):
         ('mastered', 'Mastered'),
     ]
 
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='skill_flags'
-    )
-    skill = models.ForeignKey(
-        'skills.Skill',
-        on_delete=models.CASCADE,
-        related_name='user_flags'
-    )
-    flag = models.CharField(
-        max_length=20,
-        choices=FLAG_CHOICES,
-        help_text="Type of flag (too_easy, struggling, mastered)"
-    )
-    reason = models.TextField(
-        blank=True,
-        default='',
-        help_text="Reason for flagging (e.g., 'Consecutive failures: 3')"
-    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='skill_flags')
+    skill = models.ForeignKey('skills.Skill', on_delete=models.CASCADE, related_name='user_flags')
+    flag = models.CharField(max_length=20, choices=FLAG_CHOICES)
+    reason = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('user', 'skill', 'flag')
-        verbose_name = "User Skill Flag"
-        verbose_name_plural = "User Skill Flags"
+        verbose_name = 'User Skill Flag'
+        verbose_name_plural = 'User Skill Flags'
         indexes = [
-            models.Index(fields=['user', 'flag']),
-            models.Index(fields=['skill', 'flag']),
+            models.Index(fields=['user', 'flag'], name='userskillflag_user_flag_idx'),
+            models.Index(fields=['skill', 'flag'], name='userskillflag_skill_flag_idx'),
         ]
 
     def __str__(self):
-        return f"{self.user.username} - {self.skill.title}: {self.flag}"
+        return f"{self.user.username} — {self.skill.title}: {self.flag}"

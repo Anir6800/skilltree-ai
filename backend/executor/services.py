@@ -365,7 +365,7 @@ class CompileExecutor:
         
         for test_case in test_cases:
             test_input = test_case.get("input", "")
-            expected_output = test_case.get("expected", "").strip()
+            expected_output = test_case.get("expected_output", test_case.get("expected", "")).strip()
             
             # Execute code with test input
             exec_result = self.execute(code, language, test_input)

@@ -85,8 +85,8 @@ const SkillDetailPanel = ({ skill, onClose, onStartSkill }) => {
   };
 
   const handleStartQuest = () => {
-    // Navigate to quest editor with this skill's first quest
-    navigate(`/editor?skill_id=${skill.id}`);
+    // Navigate to quest board filtered by this skill's quests
+    navigate(`/quests?skill_id=${skill.id}`);
   };
 
   return (
