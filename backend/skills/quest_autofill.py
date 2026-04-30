@@ -302,19 +302,5 @@ Return ONLY valid JSON with this structure:
         logger.debug(f"[AUTOFILL] Content validation passed")
 
 
-@shared_task(name='skills.tasks.autofill_quests_task', bind=True, max_retries=2)
-def autofill_quests_task(self, tree_id: str):
-    """
-    Celery task for async quest auto-fill.
-    
-    Args:
-        tree_id: UUID of GeneratedSkillTree
-    """
-    try:
-        service = QuestAutoFillService()
-        result = service.execute_autofill(tree_id)
-        logger.info(f"[TASK] Quest auto-fill task complete: {result}")
-        return result
-    except Exception as exc:
-        logger.error(f"[TASK] Quest auto-fill task failed: {str(exc)}", exc_info=True)
-        raise self.retry(exc=exc, countdown=10)
+# NOTE: The autofill_quests_task Celery task is defined in skills/tasks.py.
+# Keeping it here was causing a Celery task name collision. Do not re-add it.

@@ -1,127 +1,121 @@
 """
-SkillTree AI - Skills Tasks
-Re-exports Celery tasks from services so autodiscover_tasks() can find them.
+SkillTree AI – Skills Celery Tasks
+All async task definitions for the skills app live here so Celery's
+autodiscover_tasks() finds them in one place.
+
+Bug fix: generate_tree_task now correctly accepts and forwards user_id.
 """
 
+import logging
 from celery import shared_task
 from django.contrib.auth import get_user_model
 
-# Import the shared_task so Celery registers it under 'skills.tasks'
+# Re-export so Celery can discover the resolve_unlocks task
 from skills.services import resolve_unlocks_for_user  # noqa: F401
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-@shared_task
-def build_curriculum(user_id):
+@shared_task(bind=True, max_retries=2)
+def generate_tree_task(self, tree_id: str, topic: str, depth: int, user_id: int):
     """
-    Wrapper task for curriculum generation.
-    Calls the actual implementation in skills.curriculum module.
+    Async Celery task for generating an AI-powered skill tree.
+
+    Args:
+        tree_id: GeneratedSkillTree UUID (string)
+        topic: Learning topic
+        depth: Tree depth 1-5
+        user_id: ID of the requesting user (required by execute_generation)
     """
-    from skills.curriculum import build_curriculum as _build_curriculum_impl
-    return _build_curriculum_impl(user_id)
+    try:
+        from skills.ai_tree_generator import SkillTreeGeneratorService
+
+        service = SkillTreeGeneratorService()
+        result = service.execute_generation(tree_id, topic, depth, user_id)
+        logger.info(f"[TASK] Tree generation complete for tree={tree_id}: {result}")
+        return result
+
+    except Exception as exc:
+        logger.error(
+            f"[TASK] Tree generation failed for tree={tree_id}: {exc}",
+            exc_info=True,
+        )
+        # Exponential back-off: 60s, 120s
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task(bind=True, max_retries=2)
+def autofill_quests_task(self, tree_id: str):
+    """
+    Async Celery task for auto-filling stub quests with AI-generated content.
+
+    Args:
+        tree_id: GeneratedSkillTree UUID (string)
+    """
+    try:
+        from skills.quest_autofill import QuestAutoFillService
+
+        service = QuestAutoFillService()
+        result = service.execute_autofill(tree_id)
+        logger.info(f"[TASK] Quest autofill complete for tree={tree_id}: {result}")
+        return result
+
+    except Exception as exc:
+        logger.error(
+            f"[TASK] Quest autofill failed for tree={tree_id}: {exc}",
+            exc_info=True,
+        )
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
 
 
 @shared_task
-def generate_personalized_path(user_id, profile_id):
+def build_curriculum(user_id: int):
+    """Wrapper for curriculum generation."""
+    from skills.curriculum import build_curriculum as _impl
+    return _impl(user_id)
+
+
+@shared_task(bind=True, max_retries=2)
+def generate_personalized_path(self, user_id: int, profile_id: int):
     """
     Generate personalized learning path based on onboarding profile.
     """
     try:
         from users.onboarding_models import OnboardingProfile
         from skills.models import Skill, SkillProgress
-        
+
         user = User.objects.get(id=user_id)
         profile = OnboardingProfile.objects.get(id=profile_id)
-        
+
         category_levels = profile.category_levels
-        
-        # Create initial skill progress for beginner skills matching user interests
+
+        # Unlock beginner skills matching user interests
         beginner_skills = Skill.objects.filter(
             category__in=category_levels.keys(),
-            difficulty__lte=2
+            difficulty__lte=2,
         )[:10]
-        
+
         for skill in beginner_skills:
             SkillProgress.objects.get_or_create(
                 user=user,
                 skill=skill,
-                defaults={'status': 'available'}
+                defaults={'status': 'available'},
             )
-        
+
         profile.path_generated = True
         profile.save(update_fields=['path_generated'])
-        
-        # Trigger curriculum generation
+
         build_curriculum.delay(user.id)
-        
-        return {
-            'status': 'success',
-            'skills_unlocked': beginner_skills.count()
-        }
-        
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"Path generation failed for user {user_id}: {e}", exc_info=True)
-        # Mark as generated to unblock user even on failure
+
+        return {'status': 'success', 'skills_unlocked': beginner_skills.count()}
+
+    except Exception as exc:
+        logger.error(f"[TASK] Path generation failed for user={user_id}: {exc}", exc_info=True)
+        # Mark as generated to unblock the user even on failure
         try:
             from users.onboarding_models import OnboardingProfile
             OnboardingProfile.objects.filter(id=profile_id).update(path_generated=True)
         except Exception:
             pass
-        return {'status': 'error', 'error': str(e)}
-
-
-@shared_task(bind=True, max_retries=2)
-def generate_tree_task(self, tree_id, topic, depth):
-    """
-    Celery task for generating AI-powered skill trees.
-    Runs asynchronously to avoid blocking the API.
-    
-    Args:
-        tree_id: GeneratedSkillTree UUID
-        topic: Learning topic
-        depth: Tree depth (1-5)
-    """
-    try:
-        from skills.ai_tree_generator import SkillTreeGeneratorService
-        
-        service = SkillTreeGeneratorService()
-        result = service.execute_generation(tree_id, topic, depth)
-        
-        return result
-        
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Tree generation task failed for tree {tree_id}: {str(e)}", exc_info=True)
-        
-        # Retry with exponential backoff
-        raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
-
-
-
-@shared_task(bind=True, max_retries=2)
-def autofill_quests_task(self, tree_id):
-    """
-    Celery task for auto-filling stub quests with complete content.
-    Runs asynchronously to avoid blocking the API.
-    
-    Args:
-        tree_id: GeneratedSkillTree UUID
-    """
-    try:
-        from skills.quest_autofill import QuestAutoFillService
-        
-        service = QuestAutoFillService()
-        result = service.execute_autofill(tree_id)
-        
-        return result
-        
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Quest auto-fill task failed for tree {tree_id}: {str(e)}", exc_info=True)
-        
-        # Retry with exponential backoff
-        raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+        return {'status': 'error', 'error': str(exc)}
