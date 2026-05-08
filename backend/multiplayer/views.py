@@ -20,7 +20,7 @@ class MatchViewSet(viewsets.ModelViewSet):
     - GET /api/matches/ - List open matches
     - GET /api/matches/{id}/ - Get match details
     """
-    queryset = Match.objects.all()
+    queryset = Match.objects.prefetch_related('match_participants__user')
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -39,7 +39,7 @@ class MatchViewSet(viewsets.ModelViewSet):
         queryset = Match.objects.select_related('quest', 'winner').prefetch_related(
             'participants',
             Prefetch(
-                'matchparticipant_set',
+                'match_participants',
                 queryset=MatchParticipant.objects.select_related('user')
             )
         )
@@ -221,7 +221,7 @@ class MatchViewSet(viewsets.ModelViewSet):
                 'score': p.score,
                 'joined_at': p.joined_at.isoformat()
             }
-            for p in match.matchparticipant_set.select_related('user').all()
+            for p in match.match_participants.select_related('user').all()
         ]
         
         return Response({
