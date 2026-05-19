@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Zap, Menu, X } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 
@@ -13,6 +13,7 @@ const LandingNav = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -28,6 +29,12 @@ const LandingNav = () => {
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
       setMobileMenuOpen(false);
+      return;
+    }
+
+    if (location.pathname !== '/') {
+      navigate(`/#${id}`);
+      setMobileMenuOpen(false);
     }
   };
 
@@ -36,6 +43,11 @@ const LandingNav = () => {
     { label: 'How It Works', id: 'how-it-works' },
     { label: 'Pricing', id: 'pricing' },
     { label: 'Testimonials', id: 'testimonials' },
+  ];
+
+  const pageLinks = [
+    { label: 'About', href: '/about' },
+    { label: 'Contact', href: '/contact' },
   ];
 
   return (
@@ -68,6 +80,15 @@ const LandingNav = () => {
               >
                 {link.label}
               </button>
+            ))}
+            {pageLinks.map((link) => (
+              <Link
+                key={link.href}
+                to={link.href}
+                className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
+              >
+                {link.label}
+              </Link>
             ))}
           </div>
 
@@ -126,6 +147,16 @@ const LandingNav = () => {
                   {link.label}
                 </button>
               ))}
+              {pageLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  to={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block w-full text-left text-lg font-medium text-slate-300 hover:text-white transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
               <div className="pt-6 border-t border-white/10 space-y-3">
                 {isAuthenticated ? (
                   <button
@@ -161,7 +192,7 @@ const LandingNav = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes slide-down {
           from {
             opacity: 0;

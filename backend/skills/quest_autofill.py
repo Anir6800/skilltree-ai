@@ -107,67 +107,30 @@ class QuestAutoFillService:
         """
         logger.info(f"[AUTOFILL] Generating content for: {quest.title}")
         
-        # Step 1: Generate quest content
-        content = self._generate_quest_content(quest)
+        # Step 1: Generate quest content using new quest generator
+        from skills.quest_generator import quest_generator
+        
+        content = quest_generator.generate_quest(
+            skill_title=quest.skill.title,
+            skill_description=quest.skill.description,
+            difficulty=quest.skill.difficulty,
+            topic_hint=quest.skill.category,
+            quest_type=quest.type
+        )
         
         # Step 2: Validate content
         self._validate_quest_content(content, quest.type)
         
         # Step 3: Update quest
         quest.description = content['description']
-        quest.starter_code = content.get('starter_code', '')
-        quest.test_cases = content['test_cases']
-        quest.xp_reward = content.get('xp_reward', 50 * quest.skill.difficulty)
-        quest.difficulty_multiplier = content.get('difficulty_multiplier', 1.0)
+        quest.starter_code = content.get('starterCode', content.get('starter_code', ''))
+        quest.test_cases = content.get('testCases', content.get('test_cases', []))
+        quest.xp_reward = content.get('xpReward', content.get('xp_reward', 50 * quest.skill.difficulty))
+        quest.difficulty_multiplier = content.get('difficultyMultiplier', content.get('difficulty_multiplier', 1.0))
         quest.is_stub = False  # NEW: Mark as filled
         quest.save()
         
         logger.info(f"[AUTOFILL] Quest filled: {quest.title}")
-    
-    def _generate_quest_content(self, quest: Quest) -> Dict:
-        """
-        Generate quest content using LM Studio.
-        
-        Args:
-            quest: Quest to generate content for
-            
-        Returns:
-            Generated content dictionary
-        """
-        prompt = self._build_generation_prompt(quest)
-        
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an expert coding instructor. Generate high-quality programming challenges that are clear, engaging, and educational."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-        
-        try:
-            response = self.lm.chat_completion(
-                messages=messages,
-                max_tokens=2000,
-                temperature=0.3,
-            )
-            
-            response_text = self.lm.extract_content(response)
-            logger.debug(f"[AUTOFILL] LM Studio response: {response_text[:200]}...")
-            
-            # Parse JSON from response
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if not json_match:
-                raise ValueError("No JSON found in LM Studio response")
-            
-            return json.loads(json_match.group())
-            
-        except ExecutionServiceUnavailable as e:
-            logger.error(f"[AUTOFILL] LM Studio unavailable: {str(e)}")
-            raise
     
     def _build_generation_prompt(self, quest: Quest) -> str:
         """
@@ -272,30 +235,33 @@ Return ONLY valid JSON with this structure:
             raise ValueError("Content must have 'description'")
         
         if quest_type in ['coding', 'debugging']:
-            if 'test_cases' not in content or not isinstance(content['test_cases'], list):
+            test_cases = content.get('testCases', content.get('test_cases', []))
+            if not isinstance(test_cases, list):
                 raise ValueError("Coding quests must have 'test_cases' array")
             
-            if len(content['test_cases']) < 3:
+            if len(test_cases) < 3:
                 raise ValueError("Must have at least 3 test cases")
             
-            for tc in content['test_cases']:
-                if 'input' not in tc or 'expected_output' not in tc:
-                    raise ValueError("Each test case must have 'input' and 'expected_output'")
+            for tc in test_cases:
+                if 'input' not in tc or 'expectedOutput' not in tc and 'expected_output' not in tc:
+                    raise ValueError("Each test case must have 'input' and 'expectedOutput'")
         
         elif quest_type == 'mcq':
-            if 'options' not in content or len(content['options']) != 4:
+            options = content.get('options', [])
+            if not isinstance(options, list) or len(options) != 4:
                 raise ValueError("MCQ must have exactly 4 options")
             
-            if 'correct_answer' not in content or not (0 <= content['correct_answer'] < 4):
-                raise ValueError("MCQ must have valid 'correct_answer' (0-3)")
+            correct_answer = content.get('correctAnswer', content.get('correct_answer', 0))
+            if not (0 <= correct_answer < 4):
+                raise ValueError("MCQ must have valid 'correctAnswer' (0-3)")
         
         # Validate XP reward
-        xp_reward = content.get('xp_reward', 50)
+        xp_reward = content.get('xpReward', content.get('xp_reward', 50))
         if not (50 <= xp_reward <= 500):
             raise ValueError(f"XP reward must be 50-500, got {xp_reward}")
         
         # Validate difficulty multiplier
-        difficulty_multiplier = content.get('difficulty_multiplier', 1.0)
+        difficulty_multiplier = content.get('difficultyMultiplier', content.get('difficulty_multiplier', 1.0))
         if not (1.0 <= difficulty_multiplier <= 3.0):
             raise ValueError(f"Difficulty multiplier must be 1.0-3.0, got {difficulty_multiplier}")
         

@@ -1,6 +1,13 @@
 {
+  "scripts": {
+    "mail": "node mail-server.js"
+  },
   "dependencies": {
+    "cors": "^2.8.5",
     "dagre": "^0.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "nodemailer": "^8.0.7",
     "reactflow": "^11.11.4"
   }
 }

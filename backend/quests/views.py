@@ -302,19 +302,13 @@ class QuestSubmitView(APIView):
             ).exclude(id=submission.id).exists()
             if not already_awarded:
                 from skills.services import award_xp
-                from users.badge_checker import badge_checker
+                from quests.badge_hooks import check_badges_on_quest_completion
 
                 completion_meta = award_xp(user, quest)
-                new_badges = badge_checker.check_badges(
-                    user,
-                    'quest_passed',
-                    {
-                        'event_type': 'quest_passed',
-                        'quest_id': quest.id,
-                        'submission_id': submission.id,
-                        'solve_time_ms': 0,
-                    }
-                )
+                
+                # Award badges using new centralized service
+                new_badges = check_badges_on_quest_completion(submission)
+                
                 submission.execution_result = {
                     **submission.execution_result,
                     'xp_awarded': completion_meta.get('xp_gained', 0),

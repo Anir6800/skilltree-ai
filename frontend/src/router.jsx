@@ -24,6 +24,9 @@ import AdminPage from './pages/AdminPage';
 import GroupPage from './pages/GroupPage';
 import SolutionsPage from './pages/SolutionsPage';
 import ReportsPage from './pages/ReportsPage';
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 /**
@@ -143,6 +146,18 @@ const router = createBrowserRouter([
         <AuthPage />
       </PublicGuard>
     ),
+  },
+  {
+    path: '/about',
+    element: <AboutPage />,
+  },
+  {
+    path: '/contact',
+    element: <ContactPage />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
   },
   {
     path: '/admin/login',

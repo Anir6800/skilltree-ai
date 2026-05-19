@@ -323,7 +323,7 @@ const FeaturesSection = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .bento-features-grid {
           display: grid;
           grid-template-areas:

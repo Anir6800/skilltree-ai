@@ -3,7 +3,7 @@
  * Assembles all landing section components into a single scrollable page.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import LandingNav from '../components/landing/LandingNav';
 import HeroSection from '../components/landing/HeroSection';
 import SocialProofBar from '../components/landing/SocialProofBar';
@@ -17,6 +17,19 @@ import LandingFooter from '../components/landing/LandingFooter';
 import '../styles/landing.css';
 
 const LandingPage = () => {
+  useEffect(() => {
+    if (!window.location.hash) {
+      return;
+    }
+
+    const element = document.getElementById(window.location.hash.slice(1));
+    if (element) {
+      window.requestAnimationFrame(() => {
+        element.scrollIntoView({ behavior: 'smooth' });
+      });
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0a0c10] text-white overflow-x-hidden">
       <LandingNav />

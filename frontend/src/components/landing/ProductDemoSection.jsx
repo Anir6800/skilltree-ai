@@ -363,7 +363,7 @@ const ProductDemoSection = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes dash {
           to {
             stroke-dashoffset: -10;

@@ -175,7 +175,7 @@ const FinalCTASection = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes gradient-shift {
           0% {
             background: radial-gradient(

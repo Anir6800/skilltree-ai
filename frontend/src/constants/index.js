@@ -189,7 +189,7 @@ export const STORAGE_KEYS = {
  * @type {Object.<string, string>}
  */
 export const API_ENDPOINTS = {
-  AUTH_LOGIN: '/api/token/',
+  AUTH_LOGIN: '/api/auth/login/',
   AUTH_REFRESH: '/api/token/refresh/',
   AUTH_REGISTER: '/api/auth/register/',
   AUTH_LOGOUT: '/api/auth/logout/',

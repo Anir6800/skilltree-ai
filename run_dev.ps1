@@ -45,5 +45,8 @@ Launch-Task -Title "Celery Beat" -Directory "backend" -Command ".\venv\Scripts\a
 # 4. React Frontend
 Launch-Task -Title "React Frontend" -Directory "frontend" -Command "npm start"
 
+# 5. Contact Mail API
+Launch-Task -Title "Contact Mail API" -Directory "backend" -Command "npm run mail"
+
 Write-Host "`nAll processes have been launched in separate windows." -ForegroundColor Yellow
 Write-Host "Happy coding!" -ForegroundColor Cyan

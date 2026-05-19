@@ -202,7 +202,7 @@ const PricingSection = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes pulse-glow {
           0%,
           100% {

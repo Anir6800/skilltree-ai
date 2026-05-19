@@ -154,7 +154,7 @@ const TestimonialsSection = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes quote-ticker-reverse {
           0% {
             transform: translateX(-50%);

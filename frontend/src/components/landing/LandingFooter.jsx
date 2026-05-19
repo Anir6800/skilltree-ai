@@ -30,10 +30,11 @@ const LandingFooter = () => {
     {
       title: 'Product',
       links: [
-        { label: 'Features', href: '#features' },
-        { label: 'Pricing', href: '#pricing' },
+        { label: 'Features', href: '/#features' },
+        { label: 'Pricing', href: '/#pricing' },
+        { label: 'About', href: '/about' },
+        { label: 'Contact', href: '/contact' },
         { label: 'Changelog', href: '/changelog' },
-        { label: 'Roadmap', href: '/roadmap' },
       ],
     },
     {
@@ -63,14 +64,18 @@ const LandingFooter = () => {
   ];
 
   const scrollToSection = (id) => {
-    const element = document.getElementById(id.replace('#', ''));
+    const element = document.getElementById(id.replace('/#', '').replace('#', ''));
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
   const handleLinkClick = (e, href) => {
-    if (href.startsWith('#')) {
+    if (href.startsWith('#') || href.startsWith('/#')) {
+      if (href.startsWith('/#') && window.location.pathname !== '/') {
+        return;
+      }
+
       e.preventDefault();
       scrollToSection(href);
     }
@@ -129,7 +134,7 @@ const LandingFooter = () => {
                       >
                         {link.label}
                       </a>
-                    ) : link.href.startsWith('#') ? (
+                    ) : link.href.startsWith('#') || link.href.startsWith('/#') ? (
                       <a
                         href={link.href}
                         onClick={(e) => handleLinkClick(e, link.href)}

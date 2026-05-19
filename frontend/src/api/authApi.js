@@ -122,7 +122,7 @@ export async function changePassword(currentPassword, newPassword, newPasswordCo
 }
 
 /**
- * Request password reset email
+ * Request password reset code email
  * @param {string} email - User email
  * @returns {Promise<void>}
  */
@@ -131,23 +131,31 @@ export async function requestPasswordReset(email) {
     throw new Error('Email is required');
   }
   
-  await api.post('/api/auth/password/reset/', { email });
+  const response = await api.post('/api/auth/password/reset/', { email });
+  return response.data;
 }
 
 /**
- * Reset password with token
- * @param {string} token - Reset token from email
+ * Reset password with emailed code
+ * @param {string} email - Account email
+ * @param {string} code - Reset code from email
  * @param {string} newPassword - New password
  * @returns {Promise<void>}
  */
-export async function resetPassword(token, newPassword) {
-  if (!token || !newPassword) {
-    throw new Error('Token and new password are required');
+export async function resetPassword(email, code, newPassword, newPasswordConfirm) {
+  if (!email || !code || !newPassword || !newPasswordConfirm) {
+    throw new Error('Email, reset code, and password fields are required');
+  }
+
+  if (newPassword !== newPasswordConfirm) {
+    throw new Error('Passwords do not match');
   }
   
   await api.post('/api/auth/password/reset/confirm/', {
-    token,
+    email,
+    code: code.toUpperCase(),
     new_password: newPassword,
+    new_password_confirm: newPasswordConfirm,
   });
 }
 

@@ -288,7 +288,7 @@ const HowItWorksSection = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes draw-line {
           from {
             stroke-dashoffset: 1000;

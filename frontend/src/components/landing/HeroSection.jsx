@@ -270,7 +270,7 @@ const HeroSection = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes ticker {
           0% {
             transform: translateX(0);

@@ -7,10 +7,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, ShieldCheck, ArrowRight, Sparkles, Zap, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, ShieldCheck, ArrowRight, Sparkles, Zap, Eye, EyeOff } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import CinemaContainer from '../components/layout/CinemaContainer';
 import PulsingCore from '../components/nexus/PulsingCore';
+import { requestPasswordReset } from '../api/authApi';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -63,12 +64,14 @@ function cn(...inputs) {
  * Authentication page component
  * @returns {JSX.Element} Auth page
  */
-function AuthPage() {
+function AuthPage({ isLogin: initialIsLogin = true }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, register, isLoading, error, clearError } = useAuthStore();
 
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(initialIsLogin);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResetLoading, setIsResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -77,13 +80,19 @@ function AuthPage() {
     passwordConfirm: '',
   });
   const [validationError, setValidationError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
 
   const from = location.state?.from?.pathname || '/dashboard';
+  const authError = typeof error === 'string' ? error : error?.message || '';
 
   useEffect(() => {
     clearError();
-  }, [isLogin]);
+    setValidationError('');
+    setSuccessMessage('');
+    setShowSignupPrompt(false);
+  }, [isLogin, isForgotPassword]);
 
   useEffect(() => {
     let strength = 0;
@@ -98,10 +107,24 @@ function AuthPage() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setValidationError('');
+    setSuccessMessage('');
+    setShowSignupPrompt(false);
     if (error) clearError();
   };
 
   const validateForm = () => {
+    if (isForgotPassword) {
+      if (!formData.email.trim()) {
+        setValidationError('Email is required');
+        return false;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        setValidationError('Invalid email format');
+        return false;
+      }
+      return true;
+    }
+
     if (!formData.username.trim()) {
       setValidationError('Username is required');
       return false;
@@ -141,17 +164,31 @@ function AuthPage() {
     if (!validateForm()) return;
 
     try {
-      if (isLogin) {
+      if (isForgotPassword) {
+        setIsResetLoading(true);
+        const result = await requestPasswordReset(formData.email);
+        setSuccessMessage(result.detail || 'Password reset code sent. It expires in 4 minutes.');
+        setTimeout(() => {
+          navigate(`/reset-password?email=${encodeURIComponent(formData.email)}`);
+        }, 900);
+      } else if (isLogin) {
         await login(formData.username, formData.password);
+        navigate(from, { replace: true });
       } else {
         await register(formData);
+        navigate(from, { replace: true });
       }
-      
-      // Navigate to destination
-      navigate(from, { replace: true });
     } catch (err) {
       // Error is already handled by the store, but we can add local UI effects if needed
       console.error('Auth error:', err);
+      if (isForgotPassword && err.response?.status === 404) {
+        setShowSignupPrompt(true);
+        setValidationError(err.response?.data?.detail || 'This email is not in our database. Please sign up first.');
+      } else {
+        setValidationError(err.response?.data?.error || err.message || 'Request failed. Please try again.');
+      }
+    } finally {
+      setIsResetLoading(false);
     }
   };
 
@@ -200,38 +237,38 @@ function AuthPage() {
               SKILLTREE <span className="premium-gradient-text uppercase">AI</span>
             </h1>
             <p className="text-slate-400 font-medium tracking-wide text-sm uppercase">
-              {isLogin ? 'Authorization Required' : 'Initialize New Account'}
+              {isForgotPassword ? 'Recover Account Access' : isLogin ? 'Authorization Required' : 'Initialize New Account'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-1 relative">
             <AnimatePresence mode="wait">
               <motion.div
-                key={isLogin ? 'login' : 'register'}
+                key={isForgotPassword ? 'forgot-password' : isLogin ? 'login' : 'register'}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                {/* Username */}
-                <div className="form-input-container">
-                  <label className="form-label-premium"><User size={12} className="inline mr-1 mb-0.5" /> Username</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="username"
-                      value={formData.username}
-                      onChange={handleChange}
-                      className="form-input-premium pl-12 pr-4"
-                      placeholder="adventurer_01"
-                      required
-                    />
-                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                {!isForgotPassword && (
+                  <div className="form-input-container">
+                    <label className="form-label-premium"><User size={12} className="inline mr-1 mb-0.5" /> Username</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        name="username"
+                        value={formData.username}
+                        onChange={handleChange}
+                        className="form-input-premium pl-12 pr-4"
+                        placeholder="adventurer_01"
+                        required
+                      />
+                      <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Email (Register only) */}
-                {!isLogin && (
+                {(!isLogin || isForgotPassword) && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -253,57 +290,58 @@ function AuthPage() {
                   </motion.div>
                 )}
 
-                {/* Password */}
-                <div className="form-input-container">
-                  <label className="form-label-premium"><Lock size={12} className="inline mr-1 mb-0.5" /> Security Key</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={cn("form-input-premium pl-12 pr-12", validationError && validationError.includes('Password') && "border-red-500/50 bg-red-500/5")}
-                      placeholder="••••••••"
-                      required
-                    />
-                    <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-
-                  {/* Strength Indicator */}
-                  {formData.password && (
-                    <div className="mt-3 px-1">
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Integrity Level</span>
-                        <span className={cn(
-                          "text-[9px] font-bold uppercase",
-                          passwordStrength <= 25 ? "text-red-500" : passwordStrength <= 50 ? "text-orange-500" : "text-emerald-500"
-                        )}>
-                          {passwordStrength <= 25 ? "Vulnerable" : passwordStrength <= 50 ? "Encrypted" : "Quantum Secure"}
-                        </span>
-                      </div>
-                      <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${passwordStrength}%` }}
-                          className={cn(
-                            "h-full transition-colors duration-500",
-                            passwordStrength <= 25 ? "bg-red-500" : passwordStrength <= 50 ? "bg-orange-500" : "bg-emerald-500"
-                          )}
-                        />
-                      </div>
+                {!isForgotPassword && (
+                  <div className="form-input-container">
+                    <label className="form-label-premium"><Lock size={12} className="inline mr-1 mb-0.5" /> Security Key</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className={cn("form-input-premium pl-12 pr-12", validationError && validationError.includes('Password') && "border-red-500/50 bg-red-500/5")}
+                        placeholder="••••••••"
+                        required
+                      />
+                      <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
-                  )}
-                </div>
+
+                    {/* Strength Indicator */}
+                    {formData.password && (
+                      <div className="mt-3 px-1">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Integrity Level</span>
+                          <span className={cn(
+                            "text-[9px] font-bold uppercase",
+                            passwordStrength <= 25 ? "text-red-500" : passwordStrength <= 50 ? "text-orange-500" : "text-emerald-500"
+                          )}>
+                            {passwordStrength <= 25 ? "Vulnerable" : passwordStrength <= 50 ? "Encrypted" : "Quantum Secure"}
+                          </span>
+                        </div>
+                        <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${passwordStrength}%` }}
+                            className={cn(
+                              "h-full transition-colors duration-500",
+                              passwordStrength <= 25 ? "bg-red-500" : passwordStrength <= 50 ? "bg-orange-500" : "bg-emerald-500"
+                            )}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Confirm Password (Register only) */}
-                {!isLogin && (
+                {!isLogin && !isForgotPassword && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -329,15 +367,20 @@ function AuthPage() {
 
             {/* Error Messages */}
             <AnimatePresence>
-              {(error || validationError) && (
+              {(authError || validationError || successMessage) && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="bg-accent/10 border border-accent/20 text-accent text-xs font-bold py-3 px-4 rounded-xl mb-6 flex items-center"
+                  className={cn(
+                    "text-xs font-bold py-3 px-4 rounded-xl mb-6 flex items-center",
+                    successMessage
+                      ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300"
+                      : "bg-accent/10 border border-accent/20 text-accent"
+                  )}
                 >
                   <Sparkles size={14} className="mr-2 flex-shrink-0" />
-                  {validationError || error}
+                  {successMessage || validationError || authError}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -346,11 +389,36 @@ function AuthPage() {
             <button
               type="submit"
               className="auth-btn-primary group flex items-center justify-center space-x-2"
-              disabled={isLoading}
+              disabled={isLoading || isResetLoading}
             >
-              <span>{isLoading ? 'Processing...' : isLogin ? 'Initialize Sequence' : 'Create Identity'}</span>
-              {!isLoading && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />}
+              <span>{isLoading || isResetLoading ? 'Processing...' : isForgotPassword ? 'Send Reset Code' : isLogin ? 'Initialize Sequence' : 'Create Identity'}</span>
+              {!isLoading && !isResetLoading && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />}
             </button>
+
+            {isLogin && !isForgotPassword && (
+              <button
+                type="button"
+                onClick={() => setIsForgotPassword(true)}
+                className="w-full mt-4 text-slate-500 hover:text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
+              >
+                Forgot password?
+              </button>
+            )}
+
+            {showSignupPrompt && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setIsLogin(false);
+                  setShowSignupPrompt(false);
+                  setValidationError('');
+                }}
+                className="w-full mt-4 py-3 bg-white/5 border border-primary/30 rounded-xl text-xs font-bold text-primary hover:bg-primary/10 transition-all duration-300 uppercase tracking-widest"
+              >
+                Sign up with this email
+              </button>
+            )}
 
             {/* GitHub OAuth Button */}
             <div className="relative my-6">
@@ -376,12 +444,19 @@ function AuthPage() {
           <div className="mt-8 text-center">
             <button
               type="button"
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                if (isForgotPassword) {
+                  setIsForgotPassword(false);
+                  setIsLogin(true);
+                  return;
+                }
+                setIsLogin(!isLogin);
+              }}
               className="text-slate-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center mx-auto space-x-2"
             >
-              <span>{isLogin ? "Need a neural uplink?" : "Already have an uplink?"}</span>
+              <span>{isForgotPassword ? "Remembered your key?" : isLogin ? "Need a neural uplink?" : "Already have an uplink?"}</span>
               <span className="text-primary hover:underline underline-offset-4 decoration-2">
-                {isLogin ? 'Register' : 'Login'}
+                {isForgotPassword ? 'Login' : isLogin ? 'Register' : 'Login'}
               </span>
             </button>
           </div>

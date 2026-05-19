@@ -102,3 +102,34 @@ class LoginSerializer(CustomTokenObtainPairSerializer):
             attrs["username"] = identifier
             
         return super().validate(attrs)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(min_length=7, max_length=7)
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        attrs["code"] = attrs["code"].strip().upper()
+        code = attrs["code"]
+
+        digit_count = sum(char.isdigit() for char in code)
+        uppercase_count = sum(char.isupper() and char.isalpha() for char in code)
+        if len(code) != 7 or digit_count != 6 or uppercase_count != 1:
+            raise serializers.ValidationError({"code": "Enter the 6-digit plus uppercase-letter reset code."})
+
+        if attrs["new_password"] != attrs["new_password_confirm"]:
+            raise serializers.ValidationError({"new_password": "Password fields didn't match."})
+
+        password = attrs["new_password"]
+        if not any(char.isdigit() for char in password):
+            raise serializers.ValidationError({"new_password": "Password must contain at least one digit."})
+        if not any(char.isupper() for char in password):
+            raise serializers.ValidationError({"new_password": "Password must contain at least one uppercase letter."})
+
+        return attrs

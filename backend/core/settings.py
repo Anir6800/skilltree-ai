@@ -211,7 +211,7 @@ SIMPLE_JWT = {
 # Allowed origins defined via environment variable (comma-separated).
 CORS_ALLOWED_ORIGINS = [
     origin.strip() 
-    for origin in os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',') 
+    for origin in os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000').split(',') 
     if origin.strip()
 ]
 CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'True').lower() == 'true'
@@ -273,3 +273,5 @@ EXECUTION_CPU_QUOTA = int(os.getenv('EXECUTION_CPU_QUOTA', 50000))
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 1025))
+MAIL_SERVICE_URL = os.getenv('MAIL_SERVICE_URL', 'http://127.0.0.1:4000')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')

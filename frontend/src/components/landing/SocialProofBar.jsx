@@ -169,7 +169,7 @@ const SocialProofBar = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes logo-scroll {
           0% {
             transform: translateX(0);
