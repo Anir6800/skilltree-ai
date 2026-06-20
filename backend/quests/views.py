@@ -428,31 +428,14 @@ def _evaluate_synchronously(submission):
             ).exclude(id=submission.id).exists()
 
             if not already_awarded:
-                xp_earned = int(quest.xp_reward * quest.difficulty_multiplier)
-                user.xp += xp_earned
-
-                from users.models import XPLog
-                XPLog.objects.create(
-                    user=user,
-                    amount=xp_earned,
-                    source=f"Quest: {quest.title}"
-                )
-
-                from django.utils import timezone
-                from datetime import timedelta
-                today = timezone.now().date()
-                if user.last_active is None:
-                    user.streak_days = 1
-                elif user.last_active == today - timedelta(days=1):
-                    user.streak_days += 1
-                elif user.last_active != today:
-                    user.streak_days = 1
-                user.last_active = today
-                # FIX: Call save() without update_fields so the User.save() override
-                # runs and auto-computes level = (xp // 500) + 1.
-                # A targeted save with update_fields=['xp', 'level'] bypasses the
-                # override, causing level to remain stale indefinitely.
-                user.save()
+                # Delegate to the shared award path so the synchronous fallback
+                # behaves identically to the Celery task and the MCQ path:
+                # XP + streak + level + skill-completion + unlock resolution.
+                # Previously this branch awarded XP only and skipped skill
+                # unlock/completion entirely, so users solving quests while
+                # Celery was down never unlocked downstream skills.
+                from skills.services import award_xp
+                award_xp(user, quest)
 
     except Exception as e:
         logger.error(f"Synchronous evaluation failed for submission {submission.id}: {e}", exc_info=True)

@@ -190,15 +190,16 @@ class AIDetector:
             if not results or not results.get('distances'):
                 return 0.0
             
-            # Get max distance (closest match = highest similarity)
+            # Use the closest match (smallest distance = highest similarity)
             distances = results['distances'][0] if results['distances'] else []
             if not distances:
                 return 0.0
-            
-            # Normalize: ChromaDB returns distances 0-2, convert to 0-1
-            # Lower distance = higher similarity = higher AI likelihood
-            max_distance = max(distances)
-            score = 1.0 - (max_distance / 2.0)
+
+            # Normalize: ChromaDB returns distances 0-2, convert to 0-1.
+            # Lower distance = higher similarity = higher AI likelihood, so the
+            # NEAREST neighbor (min distance) drives the score — not the farthest.
+            min_distance = min(distances)
+            score = 1.0 - (min_distance / 2.0)
             
             return max(0.0, min(1.0, score))
             

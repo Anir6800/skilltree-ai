@@ -748,15 +748,21 @@ def run_submission_pipeline(submission_id):
         user_id = submission.user.id
         skill_id = submission.quest.skill.id
         
-        # Build the task chain
+        # Build the task chain.
+        # Use IMMUTABLE signatures (.si) — each task is self-contained and
+        # re-fetches what it needs from the DB by id. With mutable .s(), Celery
+        # prepends the previous task's return value as the first positional arg,
+        # so run_test_cases(self, submission_id) would be called as
+        # run_test_cases(self, <prev_result>, submission_id) → TypeError. .si()
+        # ignores the previous result and passes only the given args.
         pipeline = chain(
-            execute_code.s(submission_id),
-            run_test_cases.s(submission_id),
-            ai_evaluate.s(submission_id),
-            detect_ai_usage.s(submission_id),
-            award_xp_if_eligible.s(submission_id),
-            update_leaderboard_task.s(user_id),
-            resolve_skill_unlocks.s(user_id, skill_id),
+            execute_code.si(submission_id),
+            run_test_cases.si(submission_id),
+            ai_evaluate.si(submission_id),
+            detect_ai_usage.si(submission_id),
+            award_xp_if_eligible.si(submission_id),
+            update_leaderboard_task.si(user_id),
+            resolve_skill_unlocks.si(user_id, skill_id),
         )
         
         # Execute the chain with error handling and timeout

@@ -20,6 +20,28 @@ from users.models import XPLog
 logger = logging.getLogger(__name__)
 
 
+def _notify_user(user_id, payload):
+    """
+    Send a real-time notification to a user's personal WebSocket group
+    (handled by users.user_consumers.UserConsumer.user_notification).
+
+    Best-effort: never raises into the request path.
+    """
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+        async_to_sync(channel_layer.group_send)(
+            f"user_{user_id}",
+            {"type": "user_notification", "payload": payload},
+        )
+    except Exception as e:
+        logger.warning(f"Failed to notify user {user_id}: {e}")
+
+
 def detect_ai_code(submission_id):
     """
     Synchronous wrapper for AI detection.
@@ -220,17 +242,13 @@ class SubmissionReviewView(APIView):
             submission.status = 'approved'
             submission.save(update_fields=['status'])
             
-            # Notify user via WebSocket
-            try:
-                from multiplayer.consumers import notify_user
-                notify_user(user.id, {
-                    'type': 'ai_detection_approved',
-                    'submission_id': submission.id,
-                    'message': 'Your explanation was approved! XP has been awarded.',
-                    'xp_awarded': xp_earned,
-                })
-            except Exception as e:
-                logger.warning(f"Failed to notify user {user.id}: {e}")
+            # Notify user via WebSocket (best-effort)
+            _notify_user(user.id, {
+                'type': 'ai_detection_approved',
+                'submission_id': submission.id,
+                'message': 'Your explanation was approved! XP has been awarded.',
+                'xp_awarded': xp_earned,
+            })
             
             return Response({
                 'id': submission.id,
@@ -256,17 +274,13 @@ class SubmissionReviewView(APIView):
             submission.status = 'confirmed_ai'
             submission.save(update_fields=['status'])
             
-            # Notify user via WebSocket
-            try:
-                from multiplayer.consumers import notify_user
-                notify_user(user.id, {
-                    'type': 'ai_detection_rejected',
-                    'submission_id': submission.id,
-                    'message': 'Your submission was confirmed as AI-generated. XP has been revoked.',
-                    'xp_revoked': xp_earned,
-                })
-            except Exception as e:
-                logger.warning(f"Failed to notify user {user.id}: {e}")
+            # Notify user via WebSocket (best-effort)
+            _notify_user(user.id, {
+                'type': 'ai_detection_rejected',
+                'submission_id': submission.id,
+                'message': 'Your submission was confirmed as AI-generated. XP has been revoked.',
+                'xp_revoked': xp_earned,
+            })
             
             return Response({
                 'id': submission.id,

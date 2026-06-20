@@ -84,8 +84,9 @@ def evaluate_submission(self, submission_id):
                     'input': r.get('input', ''),
                     'expected': r.get('expected', ''),
                     'actual': r.get('actual', ''),
-                    'status': 'passed' if r.get('passed') else 'failed',
+                    'status': r.get('status', 'passed' if r.get('passed') else 'failed'),
                     'time_ms': r.get('time_ms', 0),
+                    'reasoning': r.get('reasoning', '')
                 }
                 for r in raw_results
             ]
@@ -99,13 +100,14 @@ def evaluate_submission(self, submission_id):
             test_results = []
 
         submission.execution_result = {
-            'output': exec_result.get('output', ''),
-            'stderr': exec_result.get('stderr', ''),
-            'exit_code': exec_result.get('exit_code', -1),
+            'output': exec_result.get('output', exec_result.get('overall_assessment', '')),
+            'stderr': exec_result.get('stderr', exec_result.get('error', '')),
+            'exit_code': exec_result.get('exit_code', 0 if all_passed else -1),
             'time_ms': exec_result.get('execution_time_ms', 0),
             'tests_passed': tests_passed,
             'tests_total': tests_total,
             'test_results': test_results,
+            'is_simulated': exec_result.get('is_simulated', False)
         }
 
         # 2. AI evaluation (best-effort)
@@ -134,28 +136,27 @@ def evaluate_submission(self, submission_id):
         submission.ai_detection_score = detection_score
 
         # 4. Determine final status
-        if detection_score >= 0.85:
-            submission.status = 'flagged'
+        # Flagging threshold kept consistent with AIDetector.FLAGGING_THRESHOLD
+        # and executor/pipeline.py (both 0.70).
+        final_status = 'failed'
+        if detection_score >= 0.70:
+            final_status = 'flagged'
         elif all_passed:
-            submission.status = 'passed'
-        else:
-            submission.status = 'failed'
-
-        submission.save()
+            final_status = 'passed'
 
         # 5. Award XP if passed (only first time)
         completion_meta = {}
-        if submission.status == 'passed':
+        if final_status == 'passed':
             already_awarded = QuestSubmission.objects.filter(
                 user=user, quest=quest, status='passed'
             ).exclude(id=submission_id).exists()
 
             if not already_awarded:
                 from skills.services import award_xp
-                from users.badge_checker import badge_checker
+                from users.badge_service import badge_service
 
                 completion_meta = award_xp(user, quest)
-                new_badges = badge_checker.check_badges(
+                new_badges = badge_service.check_and_award_badges(
                     user,
                     'quest_passed',
                     {
@@ -186,7 +187,6 @@ def evaluate_submission(self, submission_id):
                     'unlocked_skills': completion_meta.get('unlocked_skills', []),
                     'new_badges': completion_meta.get('new_badges', []),
                 }
-                submission.save(update_fields=['execution_result'])
 
                 # Update leaderboard
                 try:
@@ -194,6 +194,10 @@ def evaluate_submission(self, submission_id):
                     refresh_user_score.delay(user.id)
                 except Exception as e:
                     logger.warning(f"Leaderboard update skipped: {e}")
+
+        # Save status and execution_result together to prevent race condition
+        submission.status = final_status
+        submission.save()
 
         logger.info(
             f"evaluate_submission complete: submission={submission_id} "

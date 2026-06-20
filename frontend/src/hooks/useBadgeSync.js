@@ -15,13 +15,17 @@ import useBadgeStore from '../store/badgeStore';
 import useUIStore from '../store/uiStore';
 
 /**
- * Hook to sync badge events from WebSocket with store
- * 
+ * Hook to sync badge events from WebSocket with store.
+ *
+ * `useWebSocket` exposes the latest parsed message as `lastMessage` (it is NOT
+ * a socket.io-style emitter with .on/.off), so this hook reacts to changes in
+ * that message object.
+ *
  * Usage:
- * const socket = useSocket();
- * useBadgeSync(socket);
+ * const { lastMessage } = useWebSocket('/ws/user/');
+ * useBadgeSync(lastMessage);
  */
-export const useBadgeSync = (socket) => {
+export const useBadgeSync = (lastMessage) => {
   const {
     addEarnedBadge,
     queueBadge,
@@ -74,60 +78,13 @@ export const useBadgeSync = (socket) => {
     [addEarnedBadge, queueBadge, markBadgeDisplayed, focusMode]
   );
 
-  // Set up WebSocket listener
+  // React to incoming WebSocket messages. The backend sends badge unlocks as
+  // {type: 'badge_earned', badge_id, ...} to the user's personal group.
   useEffect(() => {
-    if (!socket) {
-      console.warn('Socket not available for badge sync');
-      return;
+    if (lastMessage && lastMessage.type === 'badge_earned') {
+      handleBadgeEarned(lastMessage);
     }
-
-    // Listen for badge_earned events
-    socket.on('badge_earned', handleBadgeEarned);
-
-    // Cleanup
-    return () => {
-      socket.off('badge_earned', handleBadgeEarned);
-    };
-  }, [socket, handleBadgeEarned]);
-};
-
-/**
- * Hook to fetch and sync earned badges from API
- * 
- * Usage:
- * useBadgeFetch();
- */
-export const useBadgeFetch = () => {
-  const { setBadges, setLoading, setError } = useBadgeStore();
-
-  useEffect(() => {
-    const fetchBadges = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/badges/', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch badges: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const earnedBadges = data.results.filter((b) => b.unlocked);
-        setBadges(earnedBadges);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching badges:', error);
-        setError(error.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBadges();
-  }, [setBadges, setLoading, setError]);
+  }, [lastMessage, handleBadgeEarned]);
 };
 
 /**

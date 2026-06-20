@@ -163,6 +163,12 @@ class CompileExecutor:
         docker_cmd = [
             "docker", "run",
             "--rm",
+            # Compilers never need network; isolate and cap resources so a
+            # compile bomb can't exhaust the host (mount stays writable so the
+            # compiled binary can be produced).
+            "--network=none",
+            f"--memory={MEMORY_LIMIT_MB}m",
+            f"--cpus={CPU_LIMIT}",
             "-v", f"{docker_volume}:/sandbox",
             "-w", "/sandbox",
             config["image"]
@@ -365,6 +371,16 @@ class CompileExecutor:
         
         for test_case in test_cases:
             test_input = test_case.get("input", "")
+            
+            # Handle potential list inputs just in case they bypass serializers
+            if isinstance(test_input, list):
+                test_input = "\n".join(str(x) for x in test_input)
+                
+            test_input = str(test_input)
+            # Ensure input ends with newline to prevent blocking/EOFError in input() or Scanner
+            if test_input and not test_input.endswith('\n'):
+                test_input += '\n'
+                
             expected_output = test_case.get("expected_output", test_case.get("expected", "")).strip()
             
             # Execute code with test input
@@ -382,8 +398,9 @@ class CompileExecutor:
                 })
                 continue
             
-            # Compare output
-            actual_output = exec_result["output"].strip()
+            # Compare output, normalizing \r\n to \n to avoid cross-platform mismatches
+            actual_output = exec_result["output"].strip().replace('\r\n', '\n')
+            expected_output = expected_output.replace('\r\n', '\n')
             passed = actual_output == expected_output
             
             if passed:

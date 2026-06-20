@@ -4,6 +4,7 @@ from datetime import datetime
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
+from django.core.cache import cache
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 from multiplayer.models import Match, MatchParticipant
@@ -182,7 +183,12 @@ class MatchConsumer(AsyncJsonWebsocketConsumer):
         """
         tests_passed = content.get('tests_passed', 0)
         tests_total = content.get('tests_total', 0)
-        is_winner = content.get('is_winner', False)
+        # SECURITY: never trust a client-sent "is_winner" flag — a client could
+        # simply send {is_winner: true} to claim victory. Derive it from the
+        # reported test results instead. (The test counts themselves are still
+        # client-reported; a fully authoritative fix requires the server to
+        # evaluate match submissions itself rather than via the REST endpoint.)
+        is_winner = tests_total > 0 and tests_passed >= tests_total
 
         # Update participant score
         await self.update_participant_score(self.match_id, self.user.id, tests_passed)
@@ -313,15 +319,24 @@ class MatchConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def mark_player_ready(self, match_id, user_id):
         """
-        Mark player as ready and return count of ready players.
-        For simplicity, we consider all connected players as ready.
-        Returns the total participant count.
+        Mark this player as ready (tracked in the cache) and return the number
+        of DISTINCT participants who have readied up. The match only starts once
+        this count reaches the total participant count (see handle_ready).
         """
         try:
             match = Match.objects.get(id=match_id)
-            return match.participants.count()
         except Match.DoesNotExist:
             return 0
+
+        key = f"match_ready_{match_id}"
+        participant_ids = set(match.participants.values_list('id', flat=True))
+
+        ready = set(cache.get(key, []))
+        if user_id in participant_ids:
+            ready.add(user_id)
+        ready &= participant_ids  # drop anyone no longer in the match
+        cache.set(key, list(ready), timeout=3600)
+        return len(ready)
 
     @database_sync_to_async
     def get_participant_count(self, match_id):
@@ -341,6 +356,7 @@ class MatchConsumer(AsyncJsonWebsocketConsumer):
                 match.status = 'active'
                 match.started_at = timezone.now()
                 match.save()
+                cache.delete(f"match_ready_{match_id}")
                 return match.started_at
             return match.started_at
         except Match.DoesNotExist:

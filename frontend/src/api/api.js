@@ -146,8 +146,12 @@ api.interceptors.response.use(
       });
     }
     
-    // If 401 and haven't tried to refresh yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // If 401 and haven't tried to refresh yet.
+    // Never attempt refresh-and-retry for the logout endpoint: a failed logout
+    // would trigger a refresh, which on failure dispatches `auth:logout` and
+    // calls logout() again — an infinite /api/auth/logout/ 401 loop.
+    const isLogout = originalRequest.url?.includes('/api/auth/logout/');
+    if (error.response?.status === 401 && !originalRequest._retry && !isLogout) {
       originalRequest._retry = true;
       
       // If already refreshing, wait for that promise

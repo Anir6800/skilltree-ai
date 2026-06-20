@@ -85,6 +85,12 @@ export function useWebSocket(path, options = {}) {
   }, []); // stable — reads from refs/localStorage at call time
 
   const connect = useCallback(() => {
+    // Nothing to connect to (e.g. unauthenticated → path is null).
+    // Prevents bogus connections to `${base}null`.
+    if (!pathRef.current) {
+      return;
+    }
+
     // Don't open a second socket if one is already open/connecting
     if (
       wsRef.current &&
@@ -184,6 +190,14 @@ export function useWebSocket(path, options = {}) {
     return () => disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — connect/disconnect are stable
+
+  // (Re)connect when the path becomes available or changes — e.g. when wsUrl
+  // flips from null to '/ws/user/' after login. connect() is idempotent and
+  // no-ops if a socket is already open, so this is safe alongside the mount
+  // effect above.
+  useEffect(() => {
+    if (autoConnect && path) connect();
+  }, [path, autoConnect, connect]);
 
   return {
     isConnected,
