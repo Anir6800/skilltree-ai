@@ -32,6 +32,14 @@ db.sqlite3
 db.sqlite3-journal
 media/
 
+# Celery runtime schedule (regenerated at runtime — never commit)
+celerybeat-schedule*
+celerybeat.pid
+
+# ChromaDB persisted vector stores (regenerated; not source) — at any depth
+**/chroma_db/
+*.sqlite3
+
 # [Node]
 node_modules/
 jspm_packages/
