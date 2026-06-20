@@ -21,6 +21,7 @@ from users.serializers import (
     StudyGroupGoalSerializer,
 )
 from skills.models import Skill, SkillProgress
+from users.badge_service import badge_service
 
 
 def generate_invite_code():
@@ -66,6 +67,13 @@ class CreateGroupView(APIView):
             group=group,
             user=request.user,
             role='owner'
+        )
+
+        # Trigger badge check for study group creation
+        badge_service.check_and_award_badges(
+            request.user, 
+            'study_group_created', 
+            {'event_type': 'study_group_created'}
         )
 
         serializer = StudyGroupDetailSerializer(group)

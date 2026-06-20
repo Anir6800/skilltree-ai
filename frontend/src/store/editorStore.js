@@ -62,6 +62,15 @@ const useEditorStore = create(
         }));
       },
 
+      // Clear quest state completely
+      clearQuestState: (questId) => {
+        set((state) => {
+          const newStates = { ...state.questStates };
+          delete newStates[questId];
+          return { questStates: newStates };
+        });
+      },
+
       // Reset quest code to starter
       resetQuestCode: (questId, starterCode, language) => {
         const resetCode = starterCode || DEFAULT_TEMPLATES[language] || '// Start coding...\n';

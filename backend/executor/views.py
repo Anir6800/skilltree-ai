@@ -88,6 +88,7 @@ class ExecuteCodeView(APIView):
         code = serializer.validated_data['code']
         language = serializer.validated_data['language']
         stdin_input = serializer.validated_data.get('stdin', '')
+        use_ai_simulation = serializer.validated_data.get('use_ai_simulation', False)
         
         # SECURITY: Validate code length
         if len(code) > MAX_CODE_LENGTH:
@@ -102,8 +103,17 @@ class ExecuteCodeView(APIView):
         cache.set(cache_key_hour, executions_hour + 1, 3600)  # 1 hour TTL
         
         try:
-            # Execute code with error handling
-            result = executor.execute(code, language, stdin_input)
+            # Choose execution method
+            if use_ai_simulation and ai_executor.is_available():
+                result = ai_executor.simulate_simple_execution(code, language, stdin_input)
+            else:
+                result = executor.execute(code, language, stdin_input)
+                
+                # Fallback to AI if Docker fails
+                if result.get("status") in ["runtime_error", "error"] and "Docker is not available" in result.get("stderr", ""):
+                    if ai_executor.is_available():
+                        result = ai_executor.simulate_simple_execution(code, language, stdin_input)
+                        
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             import logging

@@ -5,6 +5,16 @@ Serializers for code execution API
 from rest_framework import serializers
 
 
+class FlexibleInputField(serializers.Field):
+    """Accepts string or list and converts to string"""
+    def to_internal_value(self, data):
+        if isinstance(data, list):
+            return "\n".join(str(x) for x in data)
+        return str(data)
+        
+    def to_representation(self, value):
+        return str(value)
+
 class ExecuteCodeSerializer(serializers.Serializer):
     """Serializer for code execution request"""
     code = serializers.CharField(required=True, allow_blank=False)
@@ -12,12 +22,12 @@ class ExecuteCodeSerializer(serializers.Serializer):
         choices=['python', 'javascript', 'cpp', 'java', 'go'],
         required=True
     )
-    stdin = serializers.CharField(required=False, allow_blank=True, default="")
-
+    stdin = FlexibleInputField(required=False, default="")
+    use_ai_simulation = serializers.BooleanField(required=False, default=False)
 
 class TestCaseSerializer(serializers.Serializer):
     """Serializer for individual test case"""
-    input = serializers.CharField(allow_blank=True, default="")
+    input = FlexibleInputField(required=False, default="")
     expected = serializers.CharField(allow_blank=True, default="", required=False)
     expected_output = serializers.CharField(allow_blank=True, default="", required=False)
     

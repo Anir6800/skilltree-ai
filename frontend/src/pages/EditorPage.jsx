@@ -109,6 +109,7 @@ function StatusBanner({ execStatus }) {
     failed:  { text: 'TESTS FAILED',      icon: XCircle,      spin: false, cls: 'bg-red-500/10 border-red-500/30 text-red-400' },
     error:   { text: 'EXECUTION ERROR',   icon: AlertCircle,  spin: false, cls: 'bg-red-500/10 border-red-500/30 text-red-400' },
     timeout: { text: 'TIMED OUT',         icon: Clock,        spin: false, cls: 'bg-amber-500/10 border-amber-500/30 text-amber-400' },
+    ok:      { text: 'EXECUTION FINISHED',icon: CheckCircle2, spin: false, cls: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
   };
   const cfg = configs[execStatus];
   if (!cfg) return null;
@@ -220,11 +221,11 @@ function AiFeedbackPanel({ feedback, detectionScore }) {
 function EditorPage() {
   const { questId } = useParams();
   const navigate = useNavigate();
-  const { accessToken: token } = useAuthStore();
+  const { accessToken: token, fetchUser } = useAuthStore();
   const { fetchSkillTree, fetchSkills } = useSkillStore();
   const { fetchCompletedQuests, fetchQuests } = useQuestStore();
 
-  const { getQuestCode, getQuestLanguage, setQuestCode, setQuestLanguage, resetQuestCode, aiModeEnabled, toggleAiMode } = useEditorStore();
+  const { getQuestCode, getQuestLanguage, setQuestCode, setQuestLanguage, resetQuestCode, clearQuestState, aiModeEnabled, toggleAiMode } = useEditorStore();
 
   const [quest, setQuest] = useState(null);
   const [questLoading, setQuestLoading] = useState(true);
@@ -313,12 +314,17 @@ function EditorPage() {
           const result = data.execution_result || {};
           const tests = result.test_results || [];
           setExecTime(result.time_ms ?? null);
-          setExecOutput({ stdout: result.output || result.stdout || '', stderr: result.stderr || '', test_results: tests });
+          setExecOutput({ 
+            stdout: result.output || result.stdout || '', 
+            stderr: result.stderr || '', 
+            test_results: tests,
+            is_simulated: result.is_simulated || data.is_simulated || false
+          });
           const allPassed = tests.length > 0 && tests.every(t => t.status === 'passed');
           setExecStatus(data.status === 'passed' || allPassed ? 'passed' : data.status === 'failed' ? 'failed' : 'error');
           if (data.ai_feedback && Object.keys(data.ai_feedback).length > 0) setAiFeedback(data.ai_feedback);
+          
           if (data.status === 'passed') {
-            await Promise.allSettled([fetchSkillTree(), fetchSkills(), fetchCompletedQuests(), fetchQuests()]);
             const resultMeta = data.execution_result || {};
             setResultModal({
               open: true,
@@ -329,11 +335,19 @@ function EditorPage() {
               xpAwarded: resultMeta.xp_awarded || 0,
               unlockedStages: resultMeta.unlocked_skills || [],
             });
+            
             (resultMeta.new_badges || []).forEach((badge) => {
               window.dispatchEvent(new CustomEvent('badgeEarned', {
                 detail: { ...badge, xp_awarded: resultMeta.xp_awarded || 0 },
               }));
             });
+            
+            // Do fetches in the background to avoid blocking the modal UI
+            Promise.allSettled([fetchUser(), fetchSkillTree(), fetchSkills(), fetchCompletedQuests(), fetchQuests()])
+              .then(() => {
+                if (questId) clearQuestState(questId);
+              })
+              .catch(err => console.error('Failed background fetches:', err));
           }
           if (data.ai_detection_score !== undefined) {
             setDetectionScore(data.ai_detection_score);
@@ -363,54 +377,39 @@ function EditorPage() {
     if (!code.trim() || execStatus === 'running') return;
     clearPoll(); setExecStatus('running'); setExecOutput(null); setAiFeedback(null); setDetectionScore(undefined); setExecTime(null); pollAttemptsRef.current = 0;
     try {
-      // If quest has test cases, use test endpoint with AI simulation support
+      // For a plain run, supply the first test case's input to prevent EOF errors if the code expects input.
+      let stdin = '';
       if (quest?.test_cases && quest.test_cases.length > 0) {
-        // Map quest test cases to executor format
-        const mappedTestCases = quest.test_cases.map(tc => ({
-          input: tc.input || '',
-          expected: tc.expected_output || tc.expected || ''
-        }));
-        
-        const res = await api.post('/api/execute/test/', {
-          code: code.trim(),
-          language,
-          test_cases: mappedTestCases,
-          use_ai_simulation: aiModeEnabled
-        });
-        const data = res.data;
-        
-        // Handle direct response (AI simulation or quick execution)
-        setExecTime(data.execution_time_ms ?? 0);
-        const tests = data.results || [];
-        setExecOutput({
-          stdout: data.overall_assessment || '',
-          stderr: data.error || '',
-          test_results: tests.map(t => ({
-            input: t.input,
-            expected: t.expected,
-            actual: t.actual,
-            status: t.passed ? 'passed' : 'failed',
-            reasoning: t.reasoning
-          })),
-          is_simulated: data.is_simulated
-        });
-        setExecStatus(data.tests_passed === data.tests_total ? 'passed' : 'failed');
-        return;
+        stdin = quest.test_cases[0].input || '';
+        if (Array.isArray(stdin)) {
+          stdin = stdin.join('\n');
+        }
       }
       
-      // Fallback to simple execution for quests without test cases
-      const res = await api.post('/api/execute/', { code: code.trim(), language, ...(questId && { quest_id: questId }), run_only: true });
+      const res = await api.post('/api/execute/', { 
+        code: code.trim(), 
+        language, 
+        ...(questId && { quest_id: questId }), 
+        stdin,
+        use_ai_simulation: aiModeEnabled,
+        run_only: true 
+      });
       const data = res.data;
       if (data.status && data.status !== 'pending' && data.status !== 'running') {
         const result = data.execution_result || data;
         const tests = result.test_results || [];
-        setExecTime(result.time_ms ?? null);
-        setExecOutput({ stdout: result.output || result.stdout || data.output || '', stderr: result.stderr || '', test_results: tests });
-        setExecStatus(tests.length > 0 && tests.every(t => t.status === 'passed') ? 'passed' : tests.length > 0 ? 'failed' : 'passed');
+        setExecTime(result.execution_time_ms ?? result.time_ms ?? null);
+        setExecOutput({ 
+          stdout: result.output || result.stdout || data.output || '', 
+          stderr: result.stderr || data.stderr || data.error || '', 
+          test_results: tests,
+          is_simulated: result.is_simulated || data.is_simulated || false
+        });
+        setExecStatus(result.exit_code === 0 || result.status === 'ok' ? 'ok' : 'error');
         return;
       }
       const sid = data.submission_id || data.id || data.task_id;
-      if (sid) { pollStatus(sid); } else { setExecOutput({ stdout: data.output || data.stdout || '', stderr: data.stderr || '', test_results: [] }); setExecStatus('passed'); }
+      if (sid) { pollStatus(sid); } else { setExecOutput({ stdout: data.output || data.stdout || '', stderr: data.stderr || '', test_results: [] }); setExecStatus('ok'); }
     } catch (err) { 
       clearPoll(); 
       setExecStatus('error'); 
@@ -467,7 +466,7 @@ function EditorPage() {
   }, [quest, navigate]);
 
   // ── Loading ──────────────────────────────────────────────────────────────────
-  if (questLoading) return (
+  if (questLoading || (quest && String(quest.id) !== String(questId))) return (
     <div className="fixed inset-0 bg-[#0a0c10] flex items-center justify-center">
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-600/10 blur-[120px] rounded-full" />

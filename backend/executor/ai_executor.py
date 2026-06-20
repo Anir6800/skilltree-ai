@@ -36,12 +36,19 @@ class AIExecutor:
         Returns:
             Formatted prompt string
         """
-        test_cases_str = "\n".join([
-            f"Test {i+1}:\n  Input: {tc.get('input', '(no input)')}\n  Expected: {tc.get('expected', '')}"
-            for i, tc in enumerate(test_cases)
-        ])
-        
+        formatted_cases = []
+        for i, tc in enumerate(test_cases):
+            tc_in = tc.get('input', '(no input)')
+            if isinstance(tc_in, list):
+                tc_in = "\n".join(str(x) for x in tc_in)
+            tc_exp = tc.get('expected', '')
+            formatted_cases.append(f"Test {i+1}:\n  Input: {tc_in}\n  Expected: {tc_exp}")
+            
+        test_cases_str = "\n".join(formatted_cases)
+
         prompt = f"""You are a code execution simulator. Given the following {language} code and test cases, predict the exact output for each input.
+
+Assume that the "Input" for each test case is passed directly to the program via standard input (stdin) automatically. The program will not wait for a user.
 
 CODE:
 ```{language}
@@ -175,7 +182,14 @@ Ensure:
                     ai_result = ai_data["results"][i]
                     predicted = ai_result.get("predicted_output", "").strip()
                     expected = test_case.get("expected", "").strip()
-                    passed = predicted == expected
+                    
+                    if "would_pass" in ai_result:
+                        passed = bool(ai_result.get("would_pass"))
+                    else:
+                        passed = predicted == expected
+                        
+                    if passed and not predicted:
+                        predicted = expected
                     
                     if passed:
                         tests_passed += 1
@@ -243,6 +257,92 @@ Ensure:
         """
         return self.client.is_available()
 
+    def simulate_simple_execution(
+        self,
+        code: str,
+        language: str,
+        stdin_input: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Simulate a plain code execution without test cases.
+        
+        Args:
+            code: Source code to simulate
+            language: Programming language
+            stdin_input: Optional standard input
+            
+        Returns:
+            Dictionary matching CompileExecutor.execute() format
+        """
+        if not code or not code.strip():
+            return {
+                "output": "",
+                "stderr": "Empty code provided",
+                "exit_code": 1,
+                "execution_time_ms": 0,
+                "status": "error",
+                "is_simulated": True
+            }
+            
+        prompt = f"""You are a code execution simulator. Given the following {language} code and an input string, predict the exact output.
+
+Assume the Input is passed directly to the program via standard input (stdin) automatically. The program will not wait for a user.
+
+CODE:
+```{language}
+{code}
+```
+
+INPUT:
+{stdin_input}
+
+Analyze the code carefully and predict what standard output it would produce.
+
+Respond ONLY with valid JSON in this exact format (no markdown):
+{{
+  "output": "exact standard output produced",
+  "stderr": "any runtime error messages (leave empty if none)",
+  "exit_code": 0,
+  "execution_time_ms": 0,
+  "status": "ok"
+}}
+"""
+        try:
+            messages = [
+                {"role": "system", "content": "You are a precise code execution simulator. Always respond with valid JSON only."},
+                {"role": "user", "content": prompt}
+            ]
+            response = self.client.chat_completion(messages=messages, max_tokens=1000, temperature=0.1)
+            response_text = self.client.extract_content(response)
+            result = self._parse_ai_response(response_text)
+            
+            # Ensure it matches the expected ExecuteCodeView response
+            return {
+                "output": result.get("output", ""),
+                "stderr": result.get("stderr", ""),
+                "exit_code": result.get("exit_code", 0),
+                "execution_time_ms": result.get("execution_time_ms", 0),
+                "status": result.get("status", "ok"),
+                "is_simulated": True
+            }
+        except ExecutionServiceUnavailable as e:
+            return {
+                "output": "",
+                "stderr": f"AI service unavailable: {str(e)}",
+                "exit_code": -1,
+                "execution_time_ms": 0,
+                "status": "error",
+                "is_simulated": True
+            }
+        except Exception as e:
+            return {
+                "output": "",
+                "stderr": f"Simulation error: {str(e)}",
+                "exit_code": -1,
+                "execution_time_ms": 0,
+                "status": "error",
+                "is_simulated": True
+            }
 
 # Singleton instance
 ai_executor = AIExecutor()

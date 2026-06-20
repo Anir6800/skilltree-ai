@@ -4,11 +4,14 @@ SkillTree AI - Secure Database Utilities
 Production-grade database utilities with tenant isolation.
 Prevents cross-user data access through scoped queries.
 """
-
+from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from django.db.models import QuerySet, Model
 from django.contrib.auth import get_user_model
+
+if TYPE_CHECKING:
+    from quests.models import QuestSubmission, Quest, SharedSolution
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
