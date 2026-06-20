@@ -91,6 +91,12 @@ class LMStudioClient:
         }
 
         if response_format:
+            # LM Studio only accepts response_format.type of 'json_schema' or
+            # 'text' — not OpenAI's 'json_object' (it returns HTTP 400). Callers
+            # pass json_object to request JSON; downgrade to 'text' since they
+            # already parse JSON from the content with a regex fallback.
+            if response_format.get("type") == "json_object":
+                response_format = {"type": "text"}
             payload["response_format"] = response_format
 
         try:

@@ -13,7 +13,8 @@ from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
-from django.db.models import Q, Sum, Count
+from django.db.models import Q, Sum, Count, FloatField
+from django.db.models.functions import Cast
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -124,8 +125,12 @@ class WeeklyReportGenerator:
             completed_at__lt=week_end
         ).count()
 
+        # Cast the JSON-extracted value to a real numeric type so Django does
+        # not try to JSON-decode the aggregate result. Summing a JSONField key
+        # path directly raises "the JSON object must be str, bytes or bytearray,
+        # not int" because the JSONField decoder is applied to the SUM output.
         time_spent_ms = submissions.aggregate(
-            total=Sum('execution_result__time_ms')
+            total=Sum(Cast('execution_result__time_ms', output_field=FloatField()))
         )['total'] or 0
         time_spent_minutes = int(time_spent_ms / 60000)
 
@@ -408,11 +413,14 @@ Respond ONLY with valid JSON, no markdown or extra text."""
 
         chart.data = [data['daily_xp']]
         chart.categoryAxis.categoryNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        # ReportLab chart axis labels are Label objects whose text color is
+        # `fillColor` — `textColor` is invalid here and raises
+        # "Illegal attribute 'textColor' in class CALabel".
         chart.categoryAxis.labels.fontSize = 9
-        chart.categoryAxis.labels.textColor = HexColor('#9ca3af')
+        chart.categoryAxis.labels.fillColor = HexColor('#9ca3af')
 
         chart.valueAxis.labels.fontSize = 9
-        chart.valueAxis.labels.textColor = HexColor('#9ca3af')
+        chart.valueAxis.labels.fillColor = HexColor('#9ca3af')
 
         chart.bars[0].fillColor = HexColor('#7c6af5')
 
