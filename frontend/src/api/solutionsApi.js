@@ -4,7 +4,7 @@
  */
 
 import api from './api';
-import { getAccessToken } from './api';
+
 
 const SOLUTIONS_API = '/api/quests/solutions';
 

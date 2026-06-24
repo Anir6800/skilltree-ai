@@ -1,4 +1,4 @@
-import React from 'react';
+import 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Bot, Code2, GitBranch, Sparkles, Target, Users, Zap } from 'lucide-react';
 import LandingNav from '../components/landing/LandingNav';

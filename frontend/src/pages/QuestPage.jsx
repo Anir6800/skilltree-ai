@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, AlertCircle, TrendingUp, ArrowUpDown } from 'lucide-react';
 import api from '../api/api';
@@ -14,7 +14,7 @@ import FilterBar from '../components/quests/FilterBar';
 import QuestList from '../components/quests/QuestList';
 import QuestDetailModal from '../components/quests/QuestDetailModal';
 import QuestListSkeleton from '../components/quests/QuestSkeleton';
-import { cn } from '../utils/cn';
+
 
 const SORT_OPTIONS = [
   { value: 'xp', label: 'XP Reward' },
@@ -27,7 +27,7 @@ const SORT_OPTIONS = [
  * @returns {JSX.Element}
  */
 function QuestPage() {
-  const navigate = useNavigate();
+  
   const [searchParams] = useSearchParams();
   const [quests, setQuests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

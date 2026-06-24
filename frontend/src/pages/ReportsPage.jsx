@@ -4,10 +4,10 @@
  * Redesigned with glassmorphism design system.
  */
 
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  BarChart2, Download, Eye, Zap, Target, Trophy,
+  BarChart2, Download, Eye,
   Loader2, AlertCircle, Sparkles, X, TrendingUp,
 } from 'lucide-react';
 import api from '../api/api';
@@ -62,7 +62,7 @@ const ReportsPage = () => {
         fetchStats();
         setGenerating(false);
       }, 2000);
-    } catch (err) {
+    } catch {
       setError('Failed to generate report. Please try again.');
       setGenerating(false);
     }

@@ -50,7 +50,7 @@ const useBadgeStore = create(
        * Replaces entire earned badges set
        */
       setBadges: (badges) => {
-        set((state) => ({
+        set(() => ({
           earnedBadges: new Set(badges.map((b) => b.id)),
           error: null,
         }));

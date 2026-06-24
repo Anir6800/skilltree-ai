@@ -1,4 +1,4 @@
-import React from 'react';
+import 'react';
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import { useOnboardingCheck } from './hooks/useOnboardingCheck';

@@ -1,4 +1,4 @@
-import React from 'react';
+import 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Code, Zap, BarChart3, Clock } from 'lucide-react';
 

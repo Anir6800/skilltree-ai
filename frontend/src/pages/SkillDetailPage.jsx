@@ -19,7 +19,7 @@ function SkillDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { selectedSkill, fetchSkill, isLoading, error, unlockSkill, startLearning, completeSkill, clearSelectedSkill } = useSkillStore();
-  const { execute, status: execStatus, output, error: execError, isRunning } = useExecution();
+  const { execute, output, error: execError, isRunning } = useExecution();
 
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('python');
@@ -38,7 +38,7 @@ function SkillDetailPage() {
   const handleUnlock = async () => {
     try {
       await unlockSkill(id);
-    } catch (e) {
+    } catch {
       // Error handled by store
     }
   };
@@ -49,7 +49,7 @@ function SkillDetailPage() {
   const handleStartLearning = async () => {
     try {
       await startLearning(id);
-    } catch (e) {
+    } catch {
       // Error handled by store
     }
   };
@@ -60,7 +60,7 @@ function SkillDetailPage() {
   const handleRunCode = async () => {
     try {
       await execute({ code, language, skillId: id });
-    } catch (e) {
+    } catch {
       // Error handled by execution hook
     }
   };
@@ -72,7 +72,7 @@ function SkillDetailPage() {
     try {
       await completeSkill(id, { code, output });
       navigate('/skills');
-    } catch (e) {
+    } catch {
       // Error handled by store
     }
   };

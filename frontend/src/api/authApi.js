@@ -72,7 +72,7 @@ export async function logout() {
     if (refreshToken) {
       await api.post('/api/auth/logout/', { refresh: refreshToken });
     }
-  } catch (e) {
+  } catch {
     // Ignore logout API errors — always clear tokens
   } finally {
     clearAuthTokens();

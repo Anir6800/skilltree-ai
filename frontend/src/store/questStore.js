@@ -6,7 +6,7 @@
 
 import { create } from 'zustand';
 import * as questApi from '../api/questApi';
-import { QUEST_STATUS, QUEST_DIFFICULTY } from '../constants';
+import { QUEST_STATUS } from '../constants';
 
 /**
  * @typedef {Object} Quest

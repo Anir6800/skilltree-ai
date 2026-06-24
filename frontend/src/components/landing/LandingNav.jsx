@@ -3,7 +3,7 @@
  * Navigation bar for landing page with scroll effects and mobile menu
  */
 
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Zap, Menu, X } from 'lucide-react';
 import useAuthStore from '../../store/authStore';

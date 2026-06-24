@@ -6,6 +6,7 @@ import useAuthStore from '../store/authStore';
 const AdminLoginPage = () => {
   const navigate = useNavigate();
   const { login, isAuthenticated, user } = useAuthStore();
+  const isAdminUser = user?.role === 'admin' || user?.is_staff;
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -15,10 +16,10 @@ const AdminLoginPage = () => {
 
   // Redirect if already authenticated as admin
   React.useEffect(() => {
-    if (isAuthenticated && user?.is_staff) {
+    if (isAuthenticated && isAdminUser) {
       navigate('/admin', { replace: true });
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, isAdminUser, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,7 +29,7 @@ const AdminLoginPage = () => {
     try {
       const user = await login(formData.username, formData.password);
       
-      if (user?.is_staff) {
+      if (user?.role === 'admin' || user?.is_staff) {
         navigate('/admin', { replace: true });
       } else {
         setError('Access denied. Admin privileges required.');

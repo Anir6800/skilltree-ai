@@ -18,10 +18,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'xp', 'level', 
-            'streak_days', 'role', 'avatar_url', 
+            'streak_days', 'role', 'is_staff', 'avatar_url', 
             'quests_completed_count', 'date_joined'
         ]
-        read_only_fields = ['id', 'email', 'xp', 'level', 'streak_days', 'role', 'date_joined']
+        read_only_fields = ['id', 'email', 'xp', 'level', 'streak_days', 'role', 'is_staff', 'date_joined']
 
     def get_quests_completed_count(self, obj):
         return QuestSubmission.objects.filter(user=obj, status='passed').count()

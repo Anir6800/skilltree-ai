@@ -3,7 +3,7 @@
  * Social proof with featured testimonial cards, quote ticker, and press logos
  */
 
-import React from 'react';
+import 'react';
 import { Star } from 'lucide-react';
 import useScrollAnimation from '../../hooks/useScrollAnimation';
 

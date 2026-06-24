@@ -3,7 +3,7 @@
  * Displays all badges on profile page with earned/locked states.
  */
 
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { motion } from 'framer-motion';
 import './BadgeGrid.css';
 

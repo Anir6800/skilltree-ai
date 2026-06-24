@@ -33,22 +33,31 @@ else:
 # Ensure user has staff and superuser privileges
 user.is_staff = True
 user.is_superuser = True
+user.role = 'admin'
 user.save()
 
 # Mark admin as onboarded (skip onboarding flow)
 profile, created = OnboardingProfile.objects.get_or_create(
     user=user,
     defaults={
-        'experience_level': 'advanced',
-        'learning_goals': ['System Administration', 'Content Management'],
-        'preferred_languages': ['python', 'javascript'],
+        'primary_goal': 'upskill',
+        'target_role': 'Administrator',
+        'experience_years': 5,
+        'category_levels': {
+            'algorithms': 'advanced',
+            'ds': 'advanced',
+            'systems': 'advanced',
+            'webdev': 'advanced',
+            'aiml': 'intermediate',
+        },
+        'selected_interests': ['system_design', 'content_management', 'devops'],
         'weekly_hours': 10,
-        'completed': True
+        'path_generated': True,
     }
 )
 if not created:
-    profile.completed = True
-    profile.save()
+    profile.path_generated = True
+    profile.save(update_fields=['path_generated'])
 
 print(f"""
 ╔════════════════════════════════════════════════════════════╗

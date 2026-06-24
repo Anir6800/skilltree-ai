@@ -9,8 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Briefcase, Zap, TrendingUp, Heart, ArrowRight, ArrowLeft,
-  Code, Database, Server, Globe, Brain, Sparkles, Target,
-  Clock, CheckCircle2, Loader2
+  Code, Database, Server, Globe, Brain, Sparkles, Target, CheckCircle2
 } from 'lucide-react';
 import api from '../api/api';
 import { cn } from '../utils/cn';

@@ -3,7 +3,7 @@
  * 4-column footer with links, social icons, and legal information
  */
 
-import React from 'react';
+import 'react';
 import { Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 

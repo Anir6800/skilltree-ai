@@ -3,7 +3,7 @@
  * @module utils/xp
  */
 
-import { XP_THRESHOLDS, RANK_TIERS, getLevelFromXP, getXPForNextLevel, getRankFromLevel } from '../constants';
+import { XP_THRESHOLDS, getLevelFromXP, getXPForNextLevel, getRankFromLevel } from '../constants';
 
 /**
  * Calculate XP progress percentage to next level

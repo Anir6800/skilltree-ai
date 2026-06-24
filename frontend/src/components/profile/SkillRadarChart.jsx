@@ -4,8 +4,8 @@
  * @module components/profile/SkillRadarChart
  */
 
-import React, { useEffect, useState, useRef, useLayoutEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import  { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, AlertCircle, Zap } from 'lucide-react';
 import { getSkillRadar } from '../../api/skillApi';

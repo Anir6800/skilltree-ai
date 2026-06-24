@@ -1,7 +1,7 @@
-import React, { useRef, useMemo } from 'react';
+import  { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { MeshDistortMaterial, Sphere, Line, Html } from '@react-three/drei';
-import * as THREE from 'three';
+import 'three';
 
 const PlanetNode = ({ position, title, color, isUnlocked }) => {
   const meshRef = useRef();

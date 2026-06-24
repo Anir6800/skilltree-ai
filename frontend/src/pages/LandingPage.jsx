@@ -3,7 +3,7 @@
  * Assembles all landing section components into a single scrollable page.
  */
 
-import React, { useEffect } from 'react';
+import  { useEffect } from 'react';
 import LandingNav from '../components/landing/LandingNav';
 import HeroSection from '../components/landing/HeroSection';
 import SocialProofBar from '../components/landing/SocialProofBar';

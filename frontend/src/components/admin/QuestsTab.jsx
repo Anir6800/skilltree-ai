@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import api from '../../api/api';
 
 const QuestsTab = () => {
   const [quests, setQuests] = useState([]);
-  const [skills, setSkills] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [, setSkills] = useState([]);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     fetchQuests();

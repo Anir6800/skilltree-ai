@@ -6,7 +6,6 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactFlow, {
   Background,
@@ -17,7 +16,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { Sparkles, Filter, Loader2, AlertCircle, Wand2, Layers } from 'lucide-react';
+import { Sparkles, Filter, Loader2, AlertCircle, Wand2 } from 'lucide-react';
 import { SKILL_STATUS } from '../constants';
 import api from '../api/api';
 import { cn } from '../utils/cn';
@@ -81,14 +80,14 @@ const getLayoutedElements = (nodes, edges, direction = 'LR') => {
  * Skill Tree Page Component
  */
 function SkillTreePage() {
-  const navigate = useNavigate();
+  
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [rawSkills, setRawSkills] = useState([]);
+  const [, setRawSkills] = useState([]);
   const [showGenerator, setShowGenerator] = useState(false);
   const [treeDepth, setTreeDepth] = useState(0);  // NEW: Track tree depth
 

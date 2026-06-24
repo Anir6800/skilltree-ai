@@ -3,9 +3,9 @@
  * A premium, gamified dashboard featuring real-time XP tracking and progress visualization.
  */
 
-import React, { useEffect, useState } from 'react';
+import  { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   TrendingUp, 
   Zap, 
@@ -15,7 +15,6 @@ import {
   ChevronRight,
   Flame,
   Layout,
-  Award,
   BookOpen,
   ArrowUpRight,
   User as UserIcon,
@@ -31,7 +30,7 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 import { fetchDashboardData } from '../api/dashboardApi';
-import useAuthStore from '../store/authStore';
+import '../store/authStore';
 import MainLayout from '../components/layout/MainLayout';
 import CurriculumWidget from '../components/dashboard/CurriculumWidget';
 
@@ -62,7 +61,7 @@ const DashboardPage = () => {
   const { user, xp_history, active_quests, top_leaderboard, skills_progress } = data;
 
   // Calculate XP progress percentage
-  const nextLevelXP = (user.level + 1) * 1000;
+  
   const currentLevelXP = user.level * 1000;
   const progressInLevel = user.xp - currentLevelXP;
   const xpPercentage = Math.min(Math.max((progressInLevel / 1000) * 100, 5), 100);
@@ -305,7 +304,7 @@ const DashboardPage = () => {
 
         {active_quests.length > 0 ? (
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {active_quests.map((quest, i) => (
+            {active_quests.map((quest) => (
               <motion.div
                 key={quest.id}
                 whileHover={{ scale: 1.02, translateY: -5 }}

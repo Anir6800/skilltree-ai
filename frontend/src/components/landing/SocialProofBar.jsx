@@ -3,7 +3,7 @@
  * Trust-building strip with animated counters and company logo ticker
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import  { useEffect, useRef, useState } from 'react';
 
 const SocialProofBar = () => {
   const [hasAnimated, setHasAnimated] = useState(false);

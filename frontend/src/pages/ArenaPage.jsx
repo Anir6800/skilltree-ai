@@ -19,13 +19,7 @@ import { cn } from '../utils/cn';
 
 const REFRESH_INTERVAL_MS = 10000;
 
-const DIFFICULTY_COLORS = {
-  1: 'text-emerald-400',
-  2: 'text-emerald-400',
-  3: 'text-amber-400',
-  4: 'text-orange-400',
-  5: 'text-red-400',
-};
+
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 

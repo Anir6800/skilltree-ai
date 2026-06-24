@@ -4,7 +4,7 @@
  */
 
 import api from './api';
-import { API_ENDPOINTS, MATCH_MODES, MATCH_STATUS, PAGINATION } from '../constants';
+import { API_ENDPOINTS, MATCH_MODES, PAGINATION } from '../constants';
 
 /**
  * Create a new match

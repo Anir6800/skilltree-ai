@@ -13,7 +13,7 @@ function parseOptions(description = '') {
   const lines = description.split('\n').map((line) => line.trim()).filter(Boolean);
   const optionLines = lines
     .map((line) => {
-      const match = line.match(/^([A-Da-d])[\).]\s*(.+)$/);
+      const match = line.match(/^([A-Da-d])[).]\s*(.+)$/);
       return match ? { value: match[1].toUpperCase(), label: match[2] } : null;
     })
     .filter(Boolean);

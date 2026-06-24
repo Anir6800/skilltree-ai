@@ -3,8 +3,8 @@
  * Bento-grid feature showcase with animated mockups and hover effects
  */
 
-import React, { useState, useEffect } from 'react';
-import { Terminal, Zap, Swords, Bot, Trophy, Shield } from 'lucide-react';
+import  { useState, useEffect } from 'react';
+import { Terminal, Zap } from 'lucide-react';
 import useScrollAnimation from '../../hooks/useScrollAnimation';
 
 const FeaturesSection = () => {

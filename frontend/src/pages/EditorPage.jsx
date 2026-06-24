@@ -343,7 +343,7 @@ function EditorPage() {
                 headers: { Authorization: `Bearer ${token}` }
               });
               if (logRes.data) setDetectionLog(logRes.data);
-            } catch (e) { /* ignore */ }
+            } catch { /* ignore */ }
           }
         } catch (err) {
           // If it's a network error (no response), retry up to 3 times

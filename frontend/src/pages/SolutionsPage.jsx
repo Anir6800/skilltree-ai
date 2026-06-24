@@ -3,20 +3,18 @@
  * Peer code review system with shared solutions, comments, and diff viewer.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Editor from '@monaco-editor/react';
 import {
-  ThumbsUp, MessageCircle, Eye, Clock, Code2, User,
-  ChevronDown, ChevronUp, Send, Trash2, Reply, X,
-  Loader2, AlertCircle, Share2,
+  ThumbsUp, MessageCircle, Eye, Clock, Code2, Send, Trash2, Reply, X,
+  Loader2, AlertCircle,
 } from 'lucide-react';
 import {
   getSolutions,
   getSolutionDetail,
   getSolutionDiff,
-  toggleUpvote,
   addComment,
   deleteComment,
 } from '../api/solutionsApi';
@@ -270,7 +268,7 @@ function SolutionViewer({ solution, onClose }) {
   const handleUpvote = async () => {
     setIsUpvoting(true);
     try {
-      const result = await toggleUpvote(solution.id);
+      
       // Update local state
     } catch (err) {
       console.error('Failed to upvote:', err);
@@ -472,7 +470,7 @@ function SolutionViewer({ solution, onClose }) {
 
 export default function SolutionsPage() {
   const { questId } = useParams();
-  const navigate = useNavigate();
+  
   const [solutions, setSolutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

@@ -4,23 +4,18 @@
  * Allows users to generate personalized learning paths for any topic
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
   ChevronRight,
-  Zap,
   AlertCircle,
   CheckCircle,
-  X,
   Copy,
-  Share2,
-  Lock,
   Unlock,
   BookOpen,
   Clock,
-  Target,
   Loader,
   RefreshCw,
   Crown,
@@ -269,7 +264,7 @@ const SkillTreeMakerPage = () => {
         try {
           const profileRes = await api.get('/api/onboarding/profile/');
           setOnboardingProfile(profileRes.data);
-        } catch (err) {
+        } catch {
           // Profile might not exist, that's okay
           console.log('No onboarding profile found');
         }
@@ -352,7 +347,7 @@ const SkillTreeMakerPage = () => {
                   path_generated: true,
                   generated_tree_id: treeId,
                 });
-              } catch (err) {
+              } catch {
                 console.log('Could not update onboarding profile');
               }
             }

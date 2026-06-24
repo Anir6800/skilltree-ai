@@ -3,7 +3,7 @@
  * Theme-consistent glassmorphism 404 with navigation back to safety.
  */
 
-import React from 'react';
+import 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Home, ArrowLeft, Zap } from 'lucide-react';

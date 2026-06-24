@@ -4,7 +4,7 @@
  * Redesigned with glassmorphism design system.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, MessageCircle, Target, Plus, LogOut, Copy, Check,
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import {
   createGroup, joinGroup, getMyGroup, getGroupLeaderboard,
-  getGroupGoals, createGroupGoal, getGroupMessages, leaveGroup,
+  getGroupGoals, createGroupGoal, leaveGroup,
 } from '../api/groupsApi';
 import { getSkills } from '../api/skillApi';
 import { useGroupChat } from '../hooks/useGroupChat';

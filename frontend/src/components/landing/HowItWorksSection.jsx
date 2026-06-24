@@ -3,9 +3,9 @@
  * 3-step visual process with animated illustrations and connector lines
  */
 
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Zap, Trophy, Code } from 'lucide-react';
+import { Check, Zap, Trophy } from 'lucide-react';
 import useScrollAnimation from '../../hooks/useScrollAnimation';
 
 const HowItWorksSection = () => {

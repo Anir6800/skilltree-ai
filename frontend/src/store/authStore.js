@@ -63,7 +63,7 @@ const useAuthStore = create(
             error: errorMessage,
           });
           
-          throw new Error(errorMessage);
+          throw new Error(errorMessage, { cause: error });
         }
       },
 
@@ -118,7 +118,7 @@ const useAuthStore = create(
             error: errorMessage,
           });
           
-          throw new Error(errorMessage);
+          throw new Error(errorMessage, { cause: error });
         }
       },
 
@@ -221,7 +221,7 @@ const useAuthStore = create(
 
 // Listen for auth:logout event from API interceptor
 if (typeof window !== 'undefined') {
-  window.addEventListener('auth:logout', (event) => {
+  window.addEventListener('auth:logout', () => {
     const { logout } = useAuthStore.getState();
     logout();
   });

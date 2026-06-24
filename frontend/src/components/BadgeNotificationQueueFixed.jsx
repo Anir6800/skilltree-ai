@@ -10,7 +10,7 @@
  * - Error handling
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import useBadgeStore from '../store/badgeStore';
 import useUIStore from '../store/uiStore';

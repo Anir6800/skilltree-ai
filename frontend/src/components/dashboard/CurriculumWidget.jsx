@@ -134,7 +134,6 @@ const CurriculumWidget = () => {
   };
 
   const getProgressStatus = (week) => {
-    const { completed_count, total_count } = week;
     const expectedProgress = 100; // Assume each week should be 100% complete by its end
     const actualProgress = week.progress_percentage;
     

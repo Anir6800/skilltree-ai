@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useAuthStore from '../store/authStore';
 import SkillsTab from '../components/admin/SkillsTab';
@@ -12,8 +12,9 @@ import HeatmapTab from '../components/admin/HeatmapTab';
 const AdminPage = () => {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('stats');
+  const isAdminUser = user?.role === 'admin' || user?.is_staff;
 
-  if (!user?.is_staff) {
+  if (!isAdminUser) {
     return (
       <div style={{
         minHeight: '100vh',

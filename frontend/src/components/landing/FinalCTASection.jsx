@@ -3,7 +3,7 @@
  * Full-width CTA with animated gradient background and email capture
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 

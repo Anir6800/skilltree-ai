@@ -3,9 +3,9 @@
  * Quest difficulty heatmap with analytics and AI regeneration.
  */
 
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, AlertCircle, RefreshCw, Zap } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import api from '../../api/api';
 import { cn } from '../../utils/cn';
 
@@ -19,14 +19,9 @@ function getPassRateColor(passRate) {
   return '#ef4444';
 }
 
-function getPassRateLabel(passRate) {
-  if (passRate >= 85) return 'Healthy';
-  if (passRate >= 50) return 'Moderate';
-  if (passRate >= 25) return 'Difficult';
-  return 'Very Hard';
-}
 
-function QuestCell({ quest, onViewDetail, onRegenerate }) {
+
+function QuestCell({ quest, onRegenerate }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
 
@@ -148,7 +143,7 @@ export default function HeatmapTab() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [regenerating, setRegenerating] = useState(false);
+  const [, setRegenerating] = useState(false);
 
   useEffect(() => {
     loadSkills();
@@ -208,7 +203,7 @@ export default function HeatmapTab() {
     }
   };
 
-  const selectedSkill = skills.find(s => s.id === selectedSkillId);
+  
 
   return (
     <div className="space-y-6">

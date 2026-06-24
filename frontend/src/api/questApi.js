@@ -104,7 +104,7 @@ export async function getActiveQuests() {
  * @param {Object} params - Pagination params
  * @returns {Promise<Object>} Completed quests
  */
-export async function getCompletedQuests(params = {}) {
+export async function getCompletedQuests() {
   const response = await api.get(API_ENDPOINTS.QUESTS_LIST, {
     params: { status: 'passed' },
   });

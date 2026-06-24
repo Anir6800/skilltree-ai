@@ -5,6 +5,8 @@ Production-grade database utilities with tenant isolation.
 Prevents cross-user data access through scoped queries.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Optional, List, Dict, Any
 from django.db.models import QuerySet, Model

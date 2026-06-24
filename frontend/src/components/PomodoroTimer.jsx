@@ -5,7 +5,7 @@
  * Plays gentle chime on completion
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 import useUIStore from '../store/uiStore';

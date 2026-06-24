@@ -40,7 +40,9 @@ export function useOnboardingCheck() {
       }
 
       // Skip onboarding check for admin users or admin routes
-      if (user?.is_staff || location.pathname.startsWith('/admin')) {
+      const isAdminUser = user?.role === 'admin' || user?.is_staff;
+
+      if (isAdminUser || location.pathname.startsWith('/admin')) {
         setIsChecking(false);
         setNeedsOnboarding(false);
         return;

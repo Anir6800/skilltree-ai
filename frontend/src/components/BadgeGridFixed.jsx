@@ -10,7 +10,7 @@
  * - Smooth animations
  */
 
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import useBadgeStore from '../store/badgeStore';
 import './BadgeGrid.css';

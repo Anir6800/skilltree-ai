@@ -4,7 +4,7 @@
  * Integrates with BadgeUnlockOverlay for dramatic display
  */
 
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import useUIStore from '../store/uiStore';
 import BadgeUnlockOverlay from './BadgeUnlockOverlay';

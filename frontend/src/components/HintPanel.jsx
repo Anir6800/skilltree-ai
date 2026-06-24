@@ -4,7 +4,7 @@
  * Appears in EditorPage after 5 minutes or 2 failed submissions
  */
 
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Lightbulb, Map, Wrench, Loader } from 'lucide-react';
 import './HintPanel.css';

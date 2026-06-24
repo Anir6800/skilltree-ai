@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle } from 'lucide-react';
+import {  AlertTriangle } from 'lucide-react';
 import { API_BASE_URL } from '../../constants';
 
 const ExplanationModal = ({ isOpen, submissionId, onClose, onSuccess, token }) => {

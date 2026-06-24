@@ -3,7 +3,7 @@
  * Interactive in-page product tour with clickable skill tree and quest preview
  */
 
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Check, Lock } from 'lucide-react';
 import useScrollAnimation from '../../hooks/useScrollAnimation';

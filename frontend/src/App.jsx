@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import  { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Cpu, Zap, Activity, Users, Settings, Award, Shield, Terminal, Database } from 'lucide-react';
 import useAuthStore from './store/authStore';
 import useUIStore from './store/uiStore';
@@ -33,7 +33,7 @@ const SidebarItem = ({ icon: Icon, label, active }) => (
 const App = () => {
   const { user, rehydrate, isAuthenticated } = useAuthStore();
   const { focusMode } = useUIStore();
-  const [activeTab, setActiveTab] = useState('nexus');
+  const [activeTab] = useState('nexus');
   const [selectedNode, setSelectedNode] = useState(null);
 
   // Call rehydrate on mount as requested

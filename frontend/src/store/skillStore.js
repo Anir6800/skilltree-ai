@@ -6,7 +6,7 @@
 
 import { create } from 'zustand';
 import * as skillApi from '../api/skillApi';
-import { SKILL_STATUS, SKILL_NODE_TYPES } from '../constants';
+import { SKILL_STATUS } from '../constants';
 
 /**
  * @typedef {Object} SkillNode

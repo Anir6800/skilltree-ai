@@ -1,9 +1,9 @@
-import React, { Suspense, useRef } from 'react';
+import { Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Stars, Float, Text } from '@react-three/drei';
+import { PerspectiveCamera, Stars, Float } from '@react-three/drei';
 
 const Scene = ({ children }) => {
-  const cameraRef = useRef();
+  
   
   useFrame((state) => {
     const scrollY = window.scrollY;

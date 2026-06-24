@@ -4,14 +4,14 @@
  */
 
 import api from './api';
-import { API_ENDPOINTS, PAGINATION } from '../constants';
+import { API_ENDPOINTS } from '../constants';
 
 /**
  * Get paginated list of skills — maps to the skill tree endpoint
  * @param {Object} params - Query parameters (ignored, tree returns all)
  * @returns {Promise<Object>} Skills list
  */
-export async function getSkills(params = {}) {
+export async function getSkills() {
   // The backend exposes skills via /api/skills/tree/ — use that and return nodes as a flat list
   const response = await api.get('/api/skills/tree/');
   const nodes = response.data?.nodes ?? response.data ?? [];
@@ -82,7 +82,7 @@ export async function startLearning(skillId) {
  * @param {Object} completionData - Completion data (unused, kept for API compat)
  * @returns {Promise<Object>} Synthetic completion response
  */
-export async function completeSkill(skillId, completionData = {}) {
+export async function completeSkill(skillId) {
   if (!skillId) {
     throw new Error('Skill ID is required');
   }
@@ -109,7 +109,7 @@ export async function getSkillProgress() {
  * @param {Object} filters - Additional filters
  * @returns {Promise<Object>} Search results
  */
-export async function searchSkills(query, filters = {}) {
+export async function searchSkills(query) {
   if (!query) {
     throw new Error('Search query is required');
   }

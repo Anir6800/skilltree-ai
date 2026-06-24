@@ -3,11 +3,11 @@
  * Modal for sharing passed solutions with the community.
  */
 
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Share2, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { shareSolution } from '../../api/solutionsApi';
-import { cn } from '../../utils/cn';
+
 
 export default function ShareSolutionModal({ submissionId, questTitle, onClose, onSuccess }) {
   const [isAnonymous, setIsAnonymous] = useState(false);
