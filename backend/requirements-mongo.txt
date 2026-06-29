@@ -1,0 +1,11 @@
+# MongoDB / MongoEngine migration dependencies (Phase: ODM rewrite)
+# Install on top of requirements.txt:  pip install -r requirements-mongo.txt
+#
+# NOTE: These are additive. Do NOT remove psycopg2-binary / dj-database-url
+# until the cutover (see mongodb_migration_report.md §15 Backup & Rollback).
+
+mongoengine==0.29.1     # Document-Object Mapper (ODM) for MongoDB
+pymongo==4.10.1         # MongoDB driver (mongoengine dependency; pinned explicitly)
+dnspython==2.7.0        # Required for mongodb+srv:// Atlas connection strings
+# PyJWT is already present via djangorestframework-simplejwt (PyJWT==2.9.0)
+# bcrypt is already present (bcrypt==5.0.0)

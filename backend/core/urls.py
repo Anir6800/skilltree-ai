@@ -31,6 +31,9 @@ urlpatterns = [
     path('api/ai-evaluation/', include('ai_evaluation.quote_urls')),
     path('api/style/', include('ai_evaluation.style_urls', namespace='style')),
     path('api/', include('multiplayer.urls', namespace='multiplayer')),
+
+    # LIVE MongoDB-backed API (staged cutover) — runs alongside the legacy ORM API.
+    path('api/mongo/', include('mongo.api_urls')),
 ]
 
 # Serve media and static files during development
