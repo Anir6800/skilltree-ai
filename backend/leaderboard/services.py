@@ -158,19 +158,6 @@ def _enrich_rankings(raw_entries, offset=0):
     return results
 
 
-def _get_previous_rank(user_id, redis_key):
-    """
-    Look up the user's rank from the most recent LeaderboardSnapshot.
-    Returns None if no snapshot exists.
-    """
-    from leaderboard.models import LeaderboardSnapshot
-    try:
-        snap = LeaderboardSnapshot.objects.filter(user_id=user_id).latest()
-        return snap.rank
-    except LeaderboardSnapshot.DoesNotExist:
-        return None
-
-
 def _attach_rank_changes(entries, redis_key):
     """
     Attach a 'rank_change' field to each entry by comparing current rank
@@ -178,13 +165,27 @@ def _attach_rank_changes(entries, redis_key):
 
     Positive = moved up, negative = moved down, 0 = no change, None = new entry.
     """
+    from leaderboard.models import LeaderboardSnapshot
+    user_ids = [e['user_id'] for e in entries]
+    
+    prev_ranks = {}
+    latest_snap = LeaderboardSnapshot.objects.order_by('-snapshot_at').first()
+    if latest_snap:
+        # Get all snapshots from the same bulk run
+        snaps = LeaderboardSnapshot.objects.filter(
+            snapshot_at=latest_snap.snapshot_at,
+            user_id__in=user_ids
+        ).values('user_id', 'rank')
+        prev_ranks = {s['user_id']: s['rank'] for s in snaps}
+
     for entry in entries:
-        prev = _get_previous_rank(entry['user_id'], redis_key)
+        prev = prev_ranks.get(entry['user_id'])
         if prev is None:
             entry['rank_change'] = None
         else:
             entry['rank_change'] = prev - entry['rank']  # positive = improved
     return entries
+
 
 
 # ─── Public ranking queries ───────────────────────────────────────────────────
@@ -421,6 +422,13 @@ def snapshot_rankings():
 
     LeaderboardSnapshot.objects.bulk_create(snapshots, batch_size=500)
     logger.info(f"snapshot_rankings: saved {len(snapshots)} entries")
+    
+    # Prune historical snapshots older than 7 days to prevent database bloat
+    cutoff = timezone.now() - timezone.timedelta(days=7)
+    deleted_count, _ = LeaderboardSnapshot.objects.filter(snapshot_at__lt=cutoff).delete()
+    if deleted_count > 0:
+        logger.info(f"snapshot_rankings: pruned {deleted_count} stale snapshots older than 7 days")
+        
     return len(snapshots)
 
 

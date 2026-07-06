@@ -201,21 +201,15 @@ class SubmissionReviewView(APIView):
         xp_earned = int(quest.xp_reward * quest.difficulty_multiplier)
         
         if action == 'approve':
-            # Award XP retroactively if not already awarded
+            # Award XP and resolve unlocks retroactively if not already awarded
             already_awarded = XPLog.objects.filter(
                 user=user,
                 source__contains=f"Quest: {quest.title}"
             ).exists()
             
             if not already_awarded:
-                user.xp += xp_earned
-                user.save(update_fields=['xp', 'level'])
-                
-                XPLog.objects.create(
-                    user=user,
-                    amount=xp_earned,
-                    source=f"Quest: {quest.title} (Admin approved)"
-                )
+                from skills.services import award_xp
+                award_xp(user, quest)
             
             submission.status = 'approved'
             submission.save(update_fields=['status'])
@@ -253,6 +247,22 @@ class SubmissionReviewView(APIView):
                     source=f"AI Cheating Detected: {quest.title} (Admin override)"
                 )
             
+            # Rollback SkillProgress completion status if needed
+            from skills.models import SkillProgress
+            other_passed = QuestSubmission.objects.filter(
+                user=user, quest=quest, status__in=['passed', 'approved']
+            ).exclude(id=submission.id).exists()
+            
+            if not other_passed:
+                try:
+                    progress = SkillProgress.objects.get(user=user, skill=quest.skill)
+                    if progress.status == 'completed':
+                        progress.status = 'in_progress'
+                        progress.completed_at = None
+                        progress.save()
+                except SkillProgress.DoesNotExist:
+                    pass
+
             submission.status = 'confirmed_ai'
             submission.save(update_fields=['status'])
             

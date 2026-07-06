@@ -4,7 +4,7 @@
  * Redesigned with glassmorphism design system.
  */
 
-import  { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart2, Download, Eye,
@@ -257,9 +257,9 @@ const ReportsPage = () => {
               {selectedReport.narrative && (
                 <div className="space-y-5 mb-6">
                   {[
-                    { label: '✨ Your Week', key: 'opening_sentence' },
-                    { label: '📊 Skill Analysis', key: 'skill_analysis' },
-                    { label: '🚀 Next Week', key: 'motivational_close' },
+                    { label: '✨ Your Week', key: 'overview' },
+                    { label: '📊 Skill Analysis', key: 'skills_focus' },
+                    { label: '🚀 Next Week', key: 'motivational_nudge' },
                   ].map(({ label, key }) => selectedReport.narrative[key] && (
                     <div key={key}>
                       <h3 className="text-sm font-black text-primary mb-2">{label}</h3>

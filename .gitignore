@@ -92,3 +92,7 @@ models/
 ehthumbs.db
 Thumbs.db
 desktop.ini
+
+# [Project Specific]
+.output.txt
+filelist.txt

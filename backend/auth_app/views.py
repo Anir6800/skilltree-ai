@@ -191,10 +191,13 @@ class PasswordResetRequestView(APIView):
         user = User.objects.filter(email__iexact=email).first()
 
         if not user:
+            # Prevent email enumeration: return the same response as if the email exists
             return Response({
-                "exists": False,
-                "detail": "This email is not in our database. Please sign up first.",
-            }, status=status.HTTP_404_NOT_FOUND)
+                "exists": True,
+                "email_sent": True,
+                "detail": "Password reset code sent. It expires in 4 minutes.",
+            }, status=status.HTTP_200_OK)
+
 
         now = timezone.now()
         code = _generate_password_reset_code()

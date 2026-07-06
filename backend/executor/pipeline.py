@@ -484,14 +484,42 @@ def award_xp_if_eligible(self, submission_id):
             # Eligible for XP
             user = submission.user
             quest = submission.quest
-            
+
             xp_data = award_xp(user, quest)
             xp_awarded = True
-            
+
             # Update submission status to passed
             submission.status = 'passed'
             submission.save(update_fields=['status'])
-            
+
+            # Check badges now that status='passed' and XP/streak are updated
+            from quests.badge_hooks import check_badges_on_quest_completion
+            new_badges = check_badges_on_quest_completion(submission)
+
+            # Merge into execution_result so the frontend status-poll picks it up
+            # (mirrors the shape _handle_mcq_submission already returns)
+            submission.execution_result = {
+                **(submission.execution_result or {}),
+                'xp_awarded': xp_data['xp_gained'],
+                'new_total_xp': xp_data['new_total_xp'],
+                'new_level': xp_data['new_level'],
+                'streak_days': xp_data['streak_days'],
+                'skill_completed': xp_data.get('skill_completed', False),
+                'unlocked_skills': xp_data.get('unlocked_skills', []),
+                'new_badges': [
+                    {
+                        'id': badge.id,
+                        'slug': badge.slug,
+                        'name': badge.name,
+                        'description': badge.description,
+                        'icon_emoji': badge.icon_emoji,
+                        'rarity': badge.rarity,
+                    }
+                    for badge in new_badges
+                ],
+            }
+            submission.save(update_fields=['execution_result'])
+
             broadcast_pipeline_update(
                 submission_id,
                 5,
@@ -748,15 +776,15 @@ def run_submission_pipeline(submission_id):
         user_id = submission.user.id
         skill_id = submission.quest.skill.id
         
-        # Build the task chain
+        # Build the task chain with immutable signatures to prevent parameter prepending
         pipeline = chain(
-            execute_code.s(submission_id),
-            run_test_cases.s(submission_id),
-            ai_evaluate.s(submission_id),
-            detect_ai_usage.s(submission_id),
-            award_xp_if_eligible.s(submission_id),
-            update_leaderboard_task.s(user_id),
-            resolve_skill_unlocks.s(user_id, skill_id),
+            execute_code.si(submission_id),
+            run_test_cases.si(submission_id),
+            ai_evaluate.si(submission_id),
+            detect_ai_usage.si(submission_id),
+            award_xp_if_eligible.si(submission_id),
+            update_leaderboard_task.si(user_id),
+            resolve_skill_unlocks.si(user_id, skill_id),
         )
         
         # Execute the chain with error handling and timeout

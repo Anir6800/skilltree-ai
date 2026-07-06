@@ -421,38 +421,40 @@ def _evaluate_synchronously(submission):
         submission.status = 'passed' if all_passed else 'failed'
         submission.save()
 
-        # Award XP if passed (first time only)
+        # Award XP, check badges, and resolve unlocks if passed (first time only)
         if all_passed:
             already_awarded = QuestSubmission.objects.filter(
                 user=user, quest=quest, status='passed'
             ).exclude(id=submission.id).exists()
 
             if not already_awarded:
-                xp_earned = int(quest.xp_reward * quest.difficulty_multiplier)
-                user.xp += xp_earned
+                from skills.services import award_xp
+                from quests.badge_hooks import check_badges_on_quest_completion
 
-                from users.models import XPLog
-                XPLog.objects.create(
-                    user=user,
-                    amount=xp_earned,
-                    source=f"Quest: {quest.title}"
-                )
+                xp_data = award_xp(user, quest)
+                new_badges = check_badges_on_quest_completion(submission)
 
-                from django.utils import timezone
-                from datetime import timedelta
-                today = timezone.now().date()
-                if user.last_active is None:
-                    user.streak_days = 1
-                elif user.last_active == today - timedelta(days=1):
-                    user.streak_days += 1
-                elif user.last_active != today:
-                    user.streak_days = 1
-                user.last_active = today
-                # FIX: Call save() without update_fields so the User.save() override
-                # runs and auto-computes level = (xp // 500) + 1.
-                # A targeted save with update_fields=['xp', 'level'] bypasses the
-                # override, causing level to remain stale indefinitely.
-                user.save()
+                submission.execution_result = {
+                    **submission.execution_result,
+                    'xp_awarded': xp_data['xp_gained'],
+                    'new_total_xp': xp_data['new_total_xp'],
+                    'new_level': xp_data['new_level'],
+                    'streak_days': xp_data['streak_days'],
+                    'skill_completed': xp_data.get('skill_completed', False),
+                    'unlocked_skills': xp_data.get('unlocked_skills', []),
+                    'new_badges': [
+                        {
+                            'id': badge.id,
+                            'slug': badge.slug,
+                            'name': badge.name,
+                            'description': badge.description,
+                            'icon_emoji': badge.icon_emoji,
+                            'rarity': badge.rarity,
+                        }
+                        for badge in new_badges
+                    ],
+                }
+                submission.save(update_fields=['execution_result'])
 
     except Exception as e:
         logger.error(f"Synchronous evaluation failed for submission {submission.id}: {e}", exc_info=True)

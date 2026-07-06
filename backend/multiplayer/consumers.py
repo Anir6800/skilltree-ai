@@ -178,14 +178,15 @@ class MatchConsumer(AsyncJsonWebsocketConsumer):
 
     async def handle_submission_result(self, content):
         """
-        Broadcast submission result to all players.
+        Verify and broadcast submission result to all players.
         """
-        tests_passed = content.get('tests_passed', 0)
+        client_tests_passed = content.get('tests_passed', 0)
         tests_total = content.get('tests_total', 0)
-        is_winner = content.get('is_winner', False)
 
-        # Update participant score
-        await self.update_participant_score(self.match_id, self.user.id, tests_passed)
+        # Verify against database to prevent spoofing
+        verified_passed, is_winner = await self.verify_and_update_match_score(
+            self.match_id, self.user.id, client_tests_passed
+        )
 
         # If this is a winning submission, update match winner
         if is_winner:
@@ -195,12 +196,13 @@ class MatchConsumer(AsyncJsonWebsocketConsumer):
             'type': 'submission_result',
             'user_id': self.user.id,
             'username': self.user.username,
-            'tests_passed': tests_passed,
+            'tests_passed': verified_passed,
             'tests_total': tests_total,
             'is_winner': is_winner
         })
 
-        logger.info(f"User {self.user.username} submitted in match {self.match_id}: {tests_passed}/{tests_total}")
+        logger.info(f"User {self.user.username} submitted in match {self.match_id}: {verified_passed}/{tests_total} (Winner: {is_winner})")
+
 
     async def handle_surrender(self):
         """
@@ -355,6 +357,32 @@ class MatchConsumer(AsyncJsonWebsocketConsumer):
             participant.save()
         except MatchParticipant.DoesNotExist:
             pass
+
+    @database_sync_to_async
+    def verify_and_update_match_score(self, match_id, user_id, client_tests_passed):
+        """Verify client-asserted score against the latest DB submission."""
+        try:
+            from quests.models import QuestSubmission
+            match = Match.objects.get(id=match_id)
+            sub = QuestSubmission.objects.filter(user_id=user_id, quest=match.quest).order_by('-id').first()
+            if not sub:
+                return 0, False
+            
+            exec_res = sub.execution_result or {}
+            actual_passed = exec_res.get('tests_passed', 0)
+            actual_total = exec_res.get('tests_total', 0)
+            
+            verified_passed = min(client_tests_passed, actual_passed)
+            
+            participant = MatchParticipant.objects.get(match_id=match_id, user_id=user_id)
+            participant.score = max(participant.score, verified_passed)
+            participant.save()
+            
+            is_winner = (sub.status == 'passed') or (actual_total > 0 and verified_passed == actual_total)
+            return verified_passed, is_winner
+        except Exception:
+            return 0, False
+
 
     async def set_match_winner(self, match_id, user_id):
         """Set match winner and finish the match, awarding XP."""

@@ -42,8 +42,8 @@ class MatchSerializer(serializers.ModelSerializer):
 
     def get_participants(self, obj):
         # Use prefetched data if available to avoid N+1
-        if hasattr(obj, '_prefetched_objects_cache') and 'matchparticipant_set' in obj._prefetched_objects_cache:
-            participants = obj.matchparticipant_set.all()
+        if hasattr(obj, '_prefetched_objects_cache') and 'match_participants' in obj._prefetched_objects_cache:
+            participants = obj.match_participants.all()
         else:
             participants = MatchParticipant.objects.filter(match=obj).select_related('user')
         return MatchParticipantSerializer(participants, many=True).data

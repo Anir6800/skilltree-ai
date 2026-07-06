@@ -124,8 +124,10 @@ class WeeklyReportGenerator:
             completed_at__lt=week_end
         ).count()
 
+        from django.db.models.functions import Cast
+        from django.db.models import IntegerField
         time_spent_ms = submissions.aggregate(
-            total=Sum('execution_result__time_ms')
+            total=Sum(Cast('execution_result__time_ms', output_field=IntegerField()))
         )['total'] or 0
         time_spent_minutes = int(time_spent_ms / 60000)
 

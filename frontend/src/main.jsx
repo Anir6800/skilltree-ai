@@ -5,6 +5,7 @@ import './index.css'
 import router from './router'
 import useAuthStore from './store/authStore'
 import BadgeNotificationQueue from './components/BadgeNotificationQueue'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const App = () => {
   const initialize = useAuthStore(state => state.initialize);
@@ -14,10 +15,10 @@ const App = () => {
   }, [initialize]);
 
   return (
-    <>
+    <ErrorBoundary>
       <RouterProvider router={router} />
       <BadgeNotificationQueue />
-    </>
+    </ErrorBoundary>
   );
 };
 

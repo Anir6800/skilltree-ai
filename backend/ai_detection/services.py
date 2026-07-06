@@ -19,6 +19,8 @@ from core.chroma_client import chroma_client
 from core.lm_client import lm_client, ExecutionServiceUnavailable
 from quests.models import QuestSubmission
 from ai_detection.models import DetectionLog
+from asgiref.sync import sync_to_async
+
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +113,7 @@ class AIDetector:
         try:
             # Run layers 1 and 3 in parallel, layer 2 sequentially
             embedding_score, heuristic_score = await asyncio.gather(
-                self._layer_1_embedding_similarity(code),
+                self._layer_1_embedding_similarity(code, language),
                 self._layer_3_heuristic_scoring(code, language),
                 return_exceptions=True
             )
@@ -145,17 +147,18 @@ class AIDetector:
                 final_score, embedding_score, llm_score, heuristic_score, key_signals
             )
             
-            # Save detection log
-            self._save_detection_log(
+            # Save detection log asynchronously
+            await sync_to_async(self._save_detection_log)(
                 submission, embedding_score, llm_score, heuristic_score,
                 final_score, llm_reasoning
             )
             
-            # Update submission
+            # Update submission asynchronously
             submission.ai_detection_score = final_score
             if is_flagged:
                 submission.status = 'flagged'
-            submission.save(update_fields=['ai_detection_score', 'status'])
+            await sync_to_async(submission.save)(update_fields=['ai_detection_score', 'status'])
+
             
             return DetectionResult(
                 final_score=round(final_score, 3),
@@ -172,39 +175,41 @@ class AIDetector:
             logger.error(f"AI detection failed for submission {submission.id}: {e}", exc_info=True)
             raise
     
-    async def _layer_1_embedding_similarity(self, code: str) -> float:
+    async def _layer_1_embedding_similarity(self, code: str, language: str) -> float:
         """
         Layer 1: Embedding Similarity (35% weight)
         Query ChromaDB for similar AI code samples.
         
         Args:
             code: Code to analyze
+            language: Programming language
             
         Returns:
             Score 0-1 (higher = more AI-like)
         """
         try:
             # Query AI samples collection
-            results = self.chroma.query_ai_samples(code, n_results=5)
+            results = self.chroma.query_ai_samples(code, language, n_results=5)
             
-            if not results or not results.get('distances'):
+            if not results:
                 return 0.0
             
-            # Get max distance (closest match = highest similarity)
-            distances = results['distances'][0] if results['distances'] else []
+            # Extract distances from returned formatted list of dicts
+            distances = [r.get('distance', 1.0) for r in results]
             if not distances:
                 return 0.0
             
             # Normalize: ChromaDB returns distances 0-2, convert to 0-1
             # Lower distance = higher similarity = higher AI likelihood
-            max_distance = max(distances)
-            score = 1.0 - (max_distance / 2.0)
+            min_distance = min(distances)
+            score = 1.0 - (min_distance / 2.0)
             
             return max(0.0, min(1.0, score))
             
         except Exception as e:
             logger.warning(f"Embedding similarity layer failed: {e}")
             return 0.5
+
     
     async def _layer_2_llm_classification(
         self, code: str, language: str

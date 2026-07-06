@@ -10,6 +10,7 @@ from functools import wraps
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
+from quests.models import Quest, QuestSubmission
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -518,5 +519,4 @@ def get_user_queryset(queryset, user):
     return queryset.none()
 
 
-# Import QuestSubmission for decorators
-from quests.models import QuestSubmission
+

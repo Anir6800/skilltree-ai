@@ -129,3 +129,9 @@ websockets==16.0
 wheel==0.47.0
 zipp==3.23.1
 zope.interface==8.3
+
+# Required for the live MongoDB-backed API (core/urls.py mounts mongo.api_urls
+# unconditionally) — without these the app fails to boot at all.
+mongoengine==0.29.1
+pymongo==4.10.1
+dnspython==2.7.0

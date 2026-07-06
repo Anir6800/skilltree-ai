@@ -1,0 +1,8 @@
+# Contact-form mail microservice (backend/mail-server.js) — Express + nodemailer.
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev
+COPY mail-server.js .
+EXPOSE 4000
+CMD ["node", "mail-server.js"]

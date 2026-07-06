@@ -125,10 +125,10 @@ class BadgeChecker:
 
         solve_time = event_data.get('solve_time_ms', float('inf'))
 
-        # Get global 5th percentile (top 5%)
-        percentile_95 = self._get_solve_time_percentile(95)
+        # Get global 5th percentile (top 5% fastest times)
+        percentile_5 = self._get_solve_time_percentile(5)
 
-        return solve_time < percentile_95
+        return solve_time < percentile_5
 
     def _check_streak_lord(self, user: User, event_data: Dict[str, Any]) -> bool:
         """30-day streak."""

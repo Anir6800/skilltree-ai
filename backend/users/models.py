@@ -57,8 +57,16 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         # Invariant: level is always derived from XP.
-        # This must run on every save — never bypass with update_fields=['level'].
         self.level = (self.xp // 500) + 1
+        
+        # Ensure 'level' is updated in the DB if 'xp' is updated via update_fields
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            update_fields = set(update_fields)
+            if 'xp' in update_fields and 'level' not in update_fields:
+                update_fields.add('level')
+            kwargs['update_fields'] = update_fields
+            
         super().save(*args, **kwargs)
 
     def __str__(self):

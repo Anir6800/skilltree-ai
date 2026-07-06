@@ -11,9 +11,14 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# [Security]
-# SECRET_KEY is loaded from environment; MUST be long and random in production.
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-skilltree-ai-immersive-platform-v1-production-ready-key-replace-this')
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    if os.getenv('DEBUG', 'False').lower() == 'true':
+        SECRET_KEY = 'django-skilltree-ai-immersive-platform-v1-production-ready-key-replace-this'
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured("SECRET_KEY environment variable is required in production mode.")
+
 
 # DEBUG mode is controlled via environment variable. 
 # WARNING: NEVER run with DEBUG=True in a production environment.

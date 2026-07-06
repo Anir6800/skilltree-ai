@@ -50,14 +50,8 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || '';
  */
 export const WS_URL = import.meta.env.VITE_WS_URL || '';
 
-/**
- * XP thresholds for each level
- * @type {number[]}
- */
-export const XP_THRESHOLDS = [
-  0, 100, 250, 500, 850, 1250, 1750, 2350, 3050, 3850,
-  4750, 5750, 6850, 8050, 9350, 10750, 12250, 13850, 15550, 17350,
-];
+export const XP_THRESHOLDS = Array.from({ length: 100 }, (_, i) => i * 500);
+
 
 /**
  * Rank names based on level ranges

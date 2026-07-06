@@ -132,18 +132,15 @@ def onboarding_status(request):
         }, status=status.HTTP_200_OK)
 
 
-@api_view(['GET'])
+from django.shortcuts import get_object_or_404
+
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def skip_onboarding(request):
     """
-    Skip onboarding and create default profile.
+    Skip onboarding and create default profile, queueing path generation.
     
-    GET /api/onboarding/skip/
-    
-    Returns: {
-        "status": "skipped",
-        "message": "Onboarding skipped"
-    }
+    GET/POST /api/onboarding/skip/
     """
     user = request.user
     
@@ -155,7 +152,7 @@ def skip_onboarding(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     try:
-        # Create default profile
+        # Create default profile (marked false initially so path gets generated)
         profile = OnboardingProfile.objects.create(
             user=user,
             primary_goal='upskill',
@@ -170,12 +167,16 @@ def skip_onboarding(request):
             },
             selected_interests=['general'],
             weekly_hours=5,
-            path_generated=True
+            path_generated=False
         )
+        
+        # Trigger async AI path generation (Celery task)
+        from skills.tasks import generate_personalized_path
+        generate_personalized_path.delay(user.id, profile.id)
         
         return Response({
             'status': 'skipped',
-            'message': 'Onboarding skipped with default settings'
+            'message': 'Onboarding skipped; generating default learning path...'
         }, status=status.HTTP_201_CREATED)
         
     except Exception as e:
@@ -192,16 +193,6 @@ def update_profile(request):
     Update onboarding profile with generated tree info.
     
     POST /api/onboarding/update-profile/
-    Body: {
-        "generated_topic": "Python Basics",
-        "generated_tree_id": "uuid",
-        "path_generated": true
-    }
-    
-    Returns: {
-        "status": "updated",
-        "profile": {...}
-    }
     """
     user = request.user
     
@@ -219,7 +210,16 @@ def update_profile(request):
             profile.generated_topic = request.data['generated_topic']
         
         if 'generated_tree_id' in request.data:
-            profile.generated_tree_id = request.data['generated_tree_id']
+            generated_tree_id = request.data['generated_tree_id']
+            from skills.models import GeneratedSkillTree
+            # SECURITY: verify user ownership or public access of tree
+            tree = get_object_or_404(GeneratedSkillTree, id=generated_tree_id)
+            if tree.created_by != user and not tree.is_public:
+                return Response({
+                    'error': 'Access denied',
+                    'message': 'You do not have access to this generated skill tree.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            profile.generated_tree = tree
         
         if 'path_generated' in request.data:
             profile.path_generated = request.data['path_generated']

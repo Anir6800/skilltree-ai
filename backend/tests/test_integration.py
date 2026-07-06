@@ -28,6 +28,24 @@ from quests.models import Quest, QuestSubmission
 from multiplayer.models import Match, MatchParticipant
 from users.models import XPLog
 
+# Global mocks for LM Studio during integration tests
+from unittest.mock import patch
+lm_chat_patcher = patch('core.lm_client.LMStudioClient.chat_completion')
+mock_chat = lm_chat_patcher.start()
+mock_chat.return_value = {
+    "choices": [
+        {
+            "message": {
+                "content": '{"score": 85, "summary": "Mocked feedback", "pros": ["Clean"], "cons": [], "improvements": [], "time_complexity": "O(1)", "space_complexity": "O(1)", "quote": "Success!"}'
+            }
+        }
+    ]
+}
+
+lm_avail_patcher = patch('core.lm_client.LMStudioClient.is_available')
+mock_avail = lm_avail_patcher.start()
+mock_avail.return_value = True
+
 User = get_user_model()
 
 
@@ -86,8 +104,8 @@ class AuthenticationTests(APITestCase):
         response = self.client.post("/api/auth/register/", {
             "username": "newuser",
             "email": "newuser@test.com",
-            "password": "securepass123",
-            "password_confirm": "securepass123",
+            "password": "SecurePass123",
+            "password_confirm": "SecurePass123",
         }, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -102,8 +120,8 @@ class AuthenticationTests(APITestCase):
         response = self.client.post("/api/auth/register/", {
             "username": "existing",
             "email": "other@test.com",
-            "password": "securepass123",
-            "password_confirm": "securepass123",
+            "password": "SecurePass123",
+            "password_confirm": "SecurePass123",
         }, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -448,6 +466,36 @@ class QuestTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.xp, initial_xp + xp_earned)
 
+    def test_evaluate_synchronously_populates_xp_and_badges(self):
+        """
+        Regression test: the sync fallback path (used when Celery is
+        unavailable) must call award_xp + check_badges_on_quest_completion
+        and surface the result on execution_result, same as the MCQ path,
+        so the frontend status-poll can show XP/badge toasts.
+        """
+        from quests.views import _evaluate_synchronously
+
+        submission = QuestSubmission.objects.create(
+            user=self.user, quest=self.quest,
+            code='print("Hello World")', language="python",
+            status="pending", execution_result={},
+        )
+
+        with patch("executor.services.executor.run_test_cases") as mock_run:
+            mock_run.return_value = {
+                "tests_passed": 1,
+                "tests_total": 1,
+                "results": [{"input": "", "expected": "Hello World", "actual": "Hello World", "passed": True, "time_ms": 5}],
+            }
+            _evaluate_synchronously(submission)
+
+        submission.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertEqual(submission.status, "passed")
+        self.assertEqual(submission.execution_result["xp_awarded"], self.quest.xp_reward)
+        self.assertEqual(submission.execution_result["new_total_xp"], self.user.xp)
+        self.assertIn("new_badges", submission.execution_result)
+
     def test_already_passed_quest_rejected(self):
         QuestSubmission.objects.create(
             user=self.user, quest=self.quest,
@@ -501,7 +549,7 @@ class ArenaTests(APITestCase):
             "invite_code": invite_code,
         }, format="json")
         self.assertEqual(join_resp.status_code, status.HTTP_200_OK)
-        participant_ids = [p["id"] for p in join_resp.data.get("participants", [])]
+        participant_ids = [p["user"]["id"] for p in join_resp.data.get("participants", [])]
         self.assertIn(self.user2.id, participant_ids)
 
     def test_join_match_invalid_code_fails(self):
