@@ -264,6 +264,12 @@ LM_STUDIO_MAX_RETRIES = int(os.getenv('LM_STUDIO_MAX_RETRIES', '2'))
 LM_STUDIO_RETRY_DELAY = int(os.getenv('LM_STUDIO_RETRY_DELAY', '5'))
 LM_STUDIO_AVAILABILITY_CACHE_TTL = float(os.getenv('LM_STUDIO_AVAILABILITY_CACHE_TTL', 30))
 
+# Apify — Course Recommendations (Coursera + Udemy via Apify actors)
+APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN', '')
+
+# SERP API — free learning resources (YouTube, docs, GitHub, tutorials)
+SERP_API_KEY = os.getenv('SERP_API_KEY', '')
+
 # Execution Limits (configurable via environment)
 EXECUTOR_MAX_CODE_LENGTH = int(os.getenv('EXECUTOR_MAX_CODE_LENGTH', '50000'))  # 50KB
 EXECUTOR_MAX_TEST_CASES = int(os.getenv('EXECUTOR_MAX_TEST_CASES', '20'))

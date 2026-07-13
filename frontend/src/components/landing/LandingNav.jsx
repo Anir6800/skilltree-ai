@@ -5,8 +5,9 @@
 
 import  { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Zap, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
+import logoMark from '../../assets/skilltree-icon.png';
 
 const LandingNav = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -53,20 +54,24 @@ const LandingNav = () => {
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 h-[60px] border-b border-white/5 transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-50 h-[64px] border-b border-white/5 transition-all duration-300 ${
           scrolled
-            ? 'bg-[rgba(10,12,16,0.96)] backdrop-blur-[20px]'
-            : 'bg-[rgba(10,12,16,0.85)] backdrop-blur-[20px]'
+            ? 'bg-[rgba(5,5,5,0.96)] backdrop-blur-[20px]'
+            : 'bg-[rgba(5,5,5,0.85)] backdrop-blur-[20px]'
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-purple-800 flex items-center justify-center shadow-[0_0_20px_rgba(124,106,245,0.5)] group-hover:shadow-[0_0_30px_rgba(124,106,245,0.7)] transition-all">
-              <Zap className="text-white" fill="white" size={20} />
+            <div className="w-10 h-10 rounded-xl overflow-hidden bg-black flex items-center justify-center transition-all group-hover:shadow-[0_0_24px_rgba(255,45,45,0.5)]">
+              <img
+                src={logoMark}
+                alt="SkillTree AI"
+                className="w-full h-full object-cover"
+              />
             </div>
             <span className="text-xl font-black tracking-tighter text-white">
-              SkillTree<span className="text-purple-400">.AI</span>
+              SkillTree<span className="text-red-500">AI</span>
             </span>
           </Link>
 
@@ -97,7 +102,7 @@ const LandingNav = () => {
             {isAuthenticated ? (
               <button
                 onClick={() => navigate('/dashboard')}
-                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-semibold rounded-lg hover:shadow-[0_0_20px_rgba(124,106,245,0.5)] transition-all text-sm"
+                className="magnetic-btn px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-500 hover:shadow-[0_0_20px_rgba(255,45,45,0.5)] transition-all text-sm"
               >
                 Go to Dashboard →
               </button>
@@ -111,7 +116,7 @@ const LandingNav = () => {
                 </Link>
                 <Link
                   to="/register"
-                  className="px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-semibold rounded-lg hover:shadow-[0_0_20px_rgba(124,106,245,0.5)] transition-all text-sm"
+                  className="magnetic-btn px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-500 hover:shadow-[0_0_20px_rgba(255,45,45,0.5)] transition-all text-sm"
                 >
                   Start Free →
                 </Link>
@@ -136,7 +141,7 @@ const LandingNav = () => {
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <div className="absolute top-[60px] left-0 right-0 bg-[#0a0c10] border-b border-white/10 shadow-2xl animate-slide-down">
+          <div className="absolute top-[60px] left-0 right-0 bg-[#050505] border-b border-white/10 shadow-2xl animate-slide-down">
             <div className="px-6 py-8 space-y-6">
               {navLinks.map((link) => (
                 <button
@@ -164,7 +169,7 @@ const LandingNav = () => {
                       navigate('/dashboard');
                       setMobileMenuOpen(false);
                     }}
-                    className="block w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-semibold rounded-lg text-center"
+                    className="block w-full px-6 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white font-semibold rounded-lg text-center"
                   >
                     Go to Dashboard →
                   </button>
@@ -180,7 +185,7 @@ const LandingNav = () => {
                     <Link
                       to="/register"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="block w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-semibold rounded-lg text-center"
+                      className="block w-full px-6 py-3 bg-gradient-to-r from-red-600 to-red-800 text-white font-semibold rounded-lg text-center"
                     >
                       Start Free →
                     </Link>

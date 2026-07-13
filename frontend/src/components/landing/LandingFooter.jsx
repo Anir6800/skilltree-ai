@@ -5,7 +5,7 @@
 
 import 'react';
 import { Link } from 'react-router-dom';
-import { Zap } from 'lucide-react';
+import logoMark from '../../assets/skilltree-icon.png';
 
 const GithubIcon = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -82,18 +82,22 @@ const LandingFooter = () => {
   };
 
   return (
-    <footer className="relative bg-[#0a0c10] border-t border-white/5">
+    <footer className="relative bg-[#050505] border-t border-white/5">
       <div className="max-w-7xl mx-auto px-6 py-16">
         {/* 4-Column Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
           {/* Brand Column */}
           <div>
             <Link to="/" className="flex items-center space-x-2 mb-4 group">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-purple-800 flex items-center justify-center shadow-[0_0_20px_rgba(124,106,245,0.5)] group-hover:shadow-[0_0_30px_rgba(124,106,245,0.7)] transition-all">
-                <Zap className="text-white" fill="white" size={20} />
+              <div className="w-10 h-10 rounded-xl overflow-hidden bg-black flex items-center justify-center transition-all group-hover:shadow-[0_0_24px_rgba(255,45,45,0.5)]">
+                <img
+                  src={logoMark}
+                  alt="SkillTree AI"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="text-xl font-black tracking-tighter text-white">
-                SkillTree<span className="text-purple-400">.AI</span>
+                SkillTree<span className="text-red-500">AI</span>
               </span>
             </Link>
             <p className="text-sm text-slate-400 mb-6 leading-relaxed">
@@ -107,7 +111,7 @@ const LandingFooter = () => {
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 flex items-center justify-center bg-white/5 border border-white/10 rounded-lg text-slate-400 hover:text-purple-400 hover:border-purple-500/50 hover:-translate-y-1 transition-all duration-300"
+                  className="w-10 h-10 flex items-center justify-center bg-white/5 border border-white/10 rounded-lg text-slate-400 hover:text-red-400 hover:border-red-500/50 hover:-translate-y-1 transition-all duration-300"
                   aria-label={social.label}
                 >
                   <social.icon size={18} />

@@ -230,6 +230,7 @@ function EditorPage() {
   const [questLoading, setQuestLoading] = useState(true);
   const [questError, setQuestError] = useState(null);
   const [code, setCode] = useState('');
+  const [stdinInput, setStdinInput] = useState('');
   const [language, setLanguage] = useState('python');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [questPanelOpen, setQuestPanelOpen] = useState(true);
@@ -399,7 +400,7 @@ function EditorPage() {
       }
       
       // Fallback to simple execution for quests without test cases
-      const res = await api.post('/api/execute/', { code: code.trim(), language, ...(questId && { quest_id: questId }), run_only: true });
+      const res = await api.post('/api/execute/', { code: code.trim(), language, stdin: stdinInput, ...(questId && { quest_id: questId }), run_only: true });
       const data = res.data;
       if (data.status && data.status !== 'pending' && data.status !== 'running') {
         const result = data.execution_result || data;
@@ -417,7 +418,7 @@ function EditorPage() {
       const errorMsg = err.response?.data?.message || err.response?.data?.error || err.response?.data?.detail || 'Execution failed.';
       setExecOutput({ stdout: '', stderr: errorMsg, test_results: [] }); 
     }
-  }, [code, language, questId, quest, execStatus, aiModeEnabled, clearPoll, pollStatus]);
+  }, [code, language, questId, quest, execStatus, aiModeEnabled, stdinInput, clearPoll, pollStatus]);
 
   const handleSubmit = useCallback(async () => {
     if (!code.trim() || execStatus === 'running' || !questId || quest?.is_locked) return;
@@ -773,6 +774,23 @@ function EditorPage() {
               </AnimatePresence>
             </div>
           )}
+
+          {/* Stdin input panel */}
+          <div className="flex flex-col border-b border-white/5 shrink-0">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <Terminal size={13} className="text-slate-500" />
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Input (stdin)</span>
+              </div>
+            </div>
+            <textarea
+              value={stdinInput}
+              onChange={(e) => setStdinInput(e.target.value)}
+              placeholder="Type input here if your program reads from stdin..."
+              rows={2}
+              className="w-full resize-y bg-transparent px-4 py-2.5 font-mono text-xs text-white placeholder-slate-600 outline-none min-h-[40px] max-h-[120px]"
+            />
+          </div>
 
           {/* Output panel */}
           <div className="flex flex-col border-b border-white/5 shrink-0">

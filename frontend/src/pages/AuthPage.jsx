@@ -1,19 +1,18 @@
 /**
  * SkillTree AI - Authentication Page
- * Redesigned with immersive 3D background and premium glassmorphism
+ * Black / white / red circuit theme, matching the redesigned landing page.
  * @module pages/AuthPage
  */
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, ShieldCheck, ArrowRight, Sparkles, Zap, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ShieldCheck, ArrowRight, Sparkles, Eye, EyeOff } from 'lucide-react';
 import useAuthStore from '../store/authStore';
-import CinemaContainer from '../components/layout/CinemaContainer';
-import PulsingCore from '../components/nexus/PulsingCore';
 import { requestPasswordReset } from '../api/authApi';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import logoMark from '../assets/skilltree-icon.png';
 
 /**
  * Custom Icons for Brand Logos (Removed in Lucide v1.0+)
@@ -36,11 +35,6 @@ const Github = ({ size = 24, className = "" }) => (
   </svg>
 );
 
-
-
-/**
- * Utility for tailwind classes merging
- */
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
@@ -164,7 +158,6 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
         navigate(from, { replace: true });
       }
     } catch (err) {
-      // Error is already handled by the store, but we can add local UI effects if needed
       console.error('Auth error:', err);
       if (isForgotPassword && err.response?.status === 404) {
         setShowSignupPrompt(true);
@@ -181,44 +174,43 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
     window.location.href = '/api/auth/oauth/github/';
   };
 
-  
-
   return (
-    <div className="relative w-full min-h-screen bg-background overflow-hidden flex items-center justify-center p-6">
-      {/* Immersive 3D Layer */}
-      <div className="absolute inset-0 z-0">
-        <CinemaContainer>
-          <PulsingCore />
-        </CinemaContainer>
+    <div className="relative w-full min-h-screen bg-[#050505] overflow-hidden flex items-center justify-center p-6">
+      {/* Ambient red glow */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute inset-0"
+          style={{ background: 'radial-gradient(circle at 50% 20%, rgba(255,45,45,0.14) 0%, transparent 55%)' }}
+        />
+        <div className="absolute inset-0 opacity-[0.12] bg-[radial-gradient(rgba(255,255,255,0.4)_1px,transparent_1px)] bg-[size:32px_32px]" />
       </div>
 
-      {/* Content Overlay */}
+      {/* Content */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
         className="relative z-10 w-full max-w-lg"
       >
-        <div className="glass-panel p-10 rounded-[2.5rem] border-white/5 shadow-2xl backdrop-blur-3xl overflow-hidden group">
-          {/* Subtle light effect */}
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/20 rounded-full blur-3xl group-hover:bg-primary/30 transition-colors duration-700" />
-          <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-accent/10 rounded-full blur-3xl group-hover:bg-accent/20 transition-colors duration-700" />
+        <div className="relative bg-white/[0.03] border border-white/10 rounded-3xl p-10 backdrop-blur-xl shadow-2xl overflow-hidden">
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-600/15 rounded-full blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-red-600/10 rounded-full blur-3xl" />
 
           <div className="text-center mb-10 relative">
             <motion.div
-              initial={{ rotate: -10, scale: 0.8 }}
+              initial={{ rotate: -8, scale: 0.85 }}
               animate={{ rotate: 0, scale: 1 }}
-              transition={{ type: "spring", damping: 12 }}
-              className="inline-block mb-4 p-3 rounded-2xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20"
+              transition={{ type: 'spring', damping: 12 }}
+              className="inline-block mb-4 w-16 h-16 rounded-2xl overflow-hidden bg-black border border-white/10 shadow-[0_0_30px_rgba(255,45,45,0.35)]"
             >
-              <Zap size={32} className="text-white" fill="currentColor" />
+              <img src={logoMark} alt="SkillTree AI" className="w-full h-full object-cover" />
             </motion.div>
 
-            <h1 className="text-5xl font-black tracking-tighter mb-2">
-              SKILLTREE <span className="premium-gradient-text uppercase">AI</span>
+            <h1 className="text-4xl font-black tracking-tighter mb-2 text-white">
+              SkillTree<span className="text-red-500">AI</span>
             </h1>
             <p className="text-slate-400 font-medium tracking-wide text-sm uppercase">
-              {isForgotPassword ? 'Recover Account Access' : isLogin ? 'Authorization Required' : 'Initialize New Account'}
+              {isForgotPassword ? 'Reset your password' : isLogin ? 'Welcome back' : 'Create your account'}
             </p>
           </div>
 
@@ -232,16 +224,18 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
                 transition={{ duration: 0.3 }}
               >
                 {!isForgotPassword && (
-                  <div className="form-input-container">
-                    <label className="form-label-premium"><User size={12} className="inline mr-1 mb-0.5" /> Username</label>
+                  <div className="relative mb-6">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                      <User size={12} className="inline mr-1 mb-0.5" /> Username
+                    </label>
                     <div className="relative">
                       <input
                         type="text"
                         name="username"
                         value={formData.username}
                         onChange={handleChange}
-                        className="form-input-premium pl-12 pr-4"
-                        placeholder="adventurer_01"
+                        className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white outline-none focus:border-red-500/60 focus:bg-white/5 transition-all duration-300 placeholder:text-slate-500"
+                        placeholder="your_username"
                         required
                       />
                       <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -253,17 +247,19 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
-                    className="form-input-container"
+                    className="relative mb-6"
                   >
-                    <label className="form-label-premium"><Mail size={12} className="inline mr-1 mb-0.5" /> Neural Link (Email)</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                      <Mail size={12} className="inline mr-1 mb-0.5" /> Email
+                    </label>
                     <div className="relative">
                       <input
                         type="email"
                         name="email"
                         value={formData.email}
                         onChange={handleChange}
-                        className="form-input-premium pl-12 pr-4"
-                        placeholder="connect@nexus.ai"
+                        className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white outline-none focus:border-red-500/60 focus:bg-white/5 transition-all duration-300 placeholder:text-slate-500"
+                        placeholder="you@example.com"
                         required
                       />
                       <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -272,20 +268,25 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
                 )}
 
                 {!isForgotPassword && (
-                  <div className="form-input-container">
-                    <label className="form-label-premium"><Lock size={12} className="inline mr-1 mb-0.5" /> Security Key</label>
+                  <div className="relative mb-6">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                      <Lock size={12} className="inline mr-1 mb-0.5" /> Password
+                    </label>
                     <div className="relative">
                       <input
-                        type={showPassword ? "text" : "password"}
+                        type={showPassword ? 'text' : 'password'}
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        className={cn("form-input-premium pl-12 pr-12", validationError && validationError.includes('Password') && "border-red-500/50 bg-red-500/5")}
+                        className={cn(
+                          'w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-12 text-white outline-none focus:border-red-500/60 focus:bg-white/5 transition-all duration-300 placeholder:text-slate-500',
+                          validationError && validationError.includes('Password') && 'border-red-500/50 bg-red-500/5'
+                        )}
                         placeholder="••••••••"
                         required
                       />
                       <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
@@ -294,25 +295,26 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
                       </button>
                     </div>
 
-                    {/* Strength Indicator */}
                     {formData.password && (
                       <div className="mt-3 px-1">
                         <div className="flex justify-between items-center mb-1.5">
-                          <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Integrity Level</span>
-                          <span className={cn(
-                            "text-[9px] font-bold uppercase",
-                            passwordStrength <= 25 ? "text-red-500" : passwordStrength <= 50 ? "text-orange-500" : "text-emerald-500"
-                          )}>
-                            {passwordStrength <= 25 ? "Vulnerable" : passwordStrength <= 50 ? "Encrypted" : "Quantum Secure"}
+                          <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Password strength</span>
+                          <span
+                            className={cn(
+                              'text-[9px] font-bold uppercase',
+                              passwordStrength <= 25 ? 'text-red-500' : passwordStrength <= 50 ? 'text-orange-400' : 'text-emerald-500'
+                            )}
+                          >
+                            {passwordStrength <= 25 ? 'Weak' : passwordStrength <= 50 ? 'Okay' : 'Strong'}
                           </span>
                         </div>
                         <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                          <motion.div 
+                          <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${passwordStrength}%` }}
                             className={cn(
-                              "h-full transition-colors duration-500",
-                              passwordStrength <= 25 ? "bg-red-500" : passwordStrength <= 50 ? "bg-orange-500" : "bg-emerald-500"
+                              'h-full transition-colors duration-500',
+                              passwordStrength <= 25 ? 'bg-red-500' : passwordStrength <= 50 ? 'bg-orange-400' : 'bg-emerald-500'
                             )}
                           />
                         </div>
@@ -321,21 +323,25 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
                   </div>
                 )}
 
-                {/* Confirm Password (Register only) */}
                 {!isLogin && !isForgotPassword && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
-                    className="form-input-container"
+                    className="relative mb-6"
                   >
-                    <label className="form-label-premium"><ShieldCheck size={12} className="inline mr-1 mb-0.5" /> Verify Key</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                      <ShieldCheck size={12} className="inline mr-1 mb-0.5" /> Confirm password
+                    </label>
                     <div className="relative">
                       <input
                         type="password"
                         name="passwordConfirm"
                         value={formData.passwordConfirm}
                         onChange={handleChange}
-                        className={cn("form-input-premium pl-12 pr-4", validationError && validationError.includes('Passwords') && "border-red-500/50 bg-red-500/5")}
+                        className={cn(
+                          'w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white outline-none focus:border-red-500/60 focus:bg-white/5 transition-all duration-300 placeholder:text-slate-500',
+                          validationError && validationError.includes('Passwords') && 'border-red-500/50 bg-red-500/5'
+                        )}
                         placeholder="••••••••"
                         required
                       />
@@ -346,7 +352,6 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
               </motion.div>
             </AnimatePresence>
 
-            {/* Error Messages */}
             <AnimatePresence>
               {(authError || validationError || successMessage) && (
                 <motion.div
@@ -354,10 +359,10 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   className={cn(
-                    "text-xs font-bold py-3 px-4 rounded-xl mb-6 flex items-center",
+                    'text-xs font-bold py-3 px-4 rounded-xl mb-6 flex items-center',
                     successMessage
-                      ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300"
-                      : "bg-accent/10 border border-accent/20 text-accent"
+                      ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
+                      : 'bg-red-500/10 border border-red-500/20 text-red-300'
                   )}
                 >
                   <Sparkles size={14} className="mr-2 flex-shrink-0" />
@@ -366,13 +371,12 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
               )}
             </AnimatePresence>
 
-            {/* Submit Button */}
             <button
               type="submit"
-              className="auth-btn-primary group flex items-center justify-center space-x-2"
+              className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-bold uppercase tracking-widest text-xs rounded-xl shadow-[0_10px_30px_rgba(255,45,45,0.25)] hover:shadow-[0_10px_40px_rgba(255,45,45,0.4)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               disabled={isLoading || isResetLoading}
             >
-              <span>{isLoading || isResetLoading ? 'Processing...' : isForgotPassword ? 'Send Reset Code' : isLogin ? 'Initialize Sequence' : 'Create Identity'}</span>
+              <span>{isLoading || isResetLoading ? 'Processing...' : isForgotPassword ? 'Send reset code' : isLogin ? 'Log in' : 'Create account'}</span>
               {!isLoading && !isResetLoading && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />}
             </button>
 
@@ -395,33 +399,31 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
                   setShowSignupPrompt(false);
                   setValidationError('');
                 }}
-                className="w-full mt-4 py-3 bg-white/5 border border-primary/30 rounded-xl text-xs font-bold text-primary hover:bg-primary/10 transition-all duration-300 uppercase tracking-widest"
+                className="w-full mt-4 py-3 bg-white/5 border border-red-500/30 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 transition-all duration-300 uppercase tracking-widest"
               >
                 Sign up with this email
               </button>
             )}
 
-            {/* GitHub OAuth Button */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/5"></div>
+                <div className="w-full border-t border-white/10"></div>
               </div>
               <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-[#030712] px-4 text-slate-500 font-bold tracking-widest">External Uplink</span>
+                <span className="bg-[#0a0a0a] px-4 text-slate-500 font-bold tracking-widest">Or continue with</span>
               </div>
             </div>
 
-            <button 
+            <button
               type="button"
               onClick={handleGithubLogin}
               className="w-full py-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-3 text-xs font-bold text-slate-400 hover:bg-white/10 hover:text-white transition-all duration-300 group"
             >
               <Github size={18} className="group-hover:scale-110 transition-transform" />
-              Sync with Github
+              Continue with GitHub
             </button>
           </form>
 
-          {/* Footer Toggle */}
           <div className="mt-8 text-center">
             <button
               type="button"
@@ -435,32 +437,15 @@ function AuthPage({ isLogin: initialIsLogin = true }) {
               }}
               className="text-slate-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center mx-auto space-x-2"
             >
-              <span>{isForgotPassword ? "Remembered your key?" : isLogin ? "Need a neural uplink?" : "Already have an uplink?"}</span>
-              <span className="text-primary hover:underline underline-offset-4 decoration-2">
-                {isForgotPassword ? 'Login' : isLogin ? 'Register' : 'Login'}
+              <span>{isForgotPassword ? 'Remembered your password?' : isLogin ? "Don't have an account?" : 'Already have an account?'}</span>
+              <span className="text-red-400 hover:underline underline-offset-4 decoration-2">
+                {isForgotPassword ? 'Log in' : isLogin ? 'Sign up' : 'Log in'}
               </span>
             </button>
           </div>
         </div>
-
-        {/* Decorative elements */}
-        <div className="mt-8 flex items-center justify-center space-x-6 opacity-30 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-700">
-          <div className="flex flex-col items-center">
-            <div className="w-1 h-12 bg-gradient-to-b from-primary to-transparent" />
-            <span className="text-[8px] font-black uppercase tracking-tighter mt-2">Core</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="w-1 h-8 bg-gradient-to-b from-accent to-transparent" />
-            <span className="text-[8px] font-black uppercase tracking-tighter mt-2">Sync</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="w-1 h-16 bg-gradient-to-b from-emerald-400 to-transparent" />
-            <span className="text-[8px] font-black uppercase tracking-tighter mt-2">Node</span>
-          </div>
-        </div>
       </motion.div>
 
-      {/* Background Vignette */}
       <div className="fixed inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.9)] z-0" />
     </div>
   );

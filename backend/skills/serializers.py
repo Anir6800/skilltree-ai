@@ -39,9 +39,9 @@ class SkillSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'category', 'difficulty',
             'tree_depth', 'xp_required_to_unlock', 'status',
-            'prerequisites_count', 'created_at', 'updated_at',
+            'prerequisites_count', 'courses', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'courses', 'created_at', 'updated_at']
 
     def get_status(self, obj):
         request = self.context.get('request')

@@ -43,6 +43,15 @@ class GeneratedSkillTree(models.Model):
     raw_ai_response = models.JSONField(default=dict)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='generating')
     depth = models.IntegerField(default=3, help_text='Tree depth (1-5) used during generation')
+
+    # Chunked-generation progress state (personalized onboarding trees).
+    # `outline` holds the AI plan plus a `created` map {outline_node_id: skill_pk}
+    # which makes the Celery task idempotent/resumable after interruption.
+    total_nodes = models.IntegerField(default=0)
+    nodes_completed = models.IntegerField(default=0)
+    stage = models.CharField(max_length=100, blank=True, default='')
+    error = models.TextField(blank=True, default='')
+    outline = models.JSONField(default=dict, blank=True)
     skills_created = models.ManyToManyField('Skill', related_name='generated_from_trees', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -90,6 +99,25 @@ class Skill(models.Model):
         related_name='unlocks',
     )
     xp_required_to_unlock = models.IntegerField(default=0)
+    xp_reward = models.IntegerField(default=100, help_text='XP awarded when this node is completed')
+    estimated_minutes = models.IntegerField(default=60, help_text='Estimated learning time for this node')
+    skills_gained = models.JSONField(default=list, blank=True, help_text='List of skill names gained on completion')
+    courses = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            'Recommended paid courses fetched from Coursera and Udemy via Apify. '
+            'Each entry: {title, provider, url, price, rating, instructor, duration, thumbnail}'
+        ),
+    )
+    free_resources = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            'Free learning resources fetched via SERP API. '
+            'Each entry: {title, url, type, source, snippet}'
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -200,6 +228,20 @@ class UserCurriculum(models.Model):
 
     def __str__(self):
         return f"{self.user.username} — {len(self.weeks)} weeks"
+
+
+class APICache(models.Model):
+    """
+    Persistent cache for external API results (Apify course scrapes, SERP
+    searches). Keyed by provider+query; entries older than the TTL used by
+    skills.resource_fetcher.api_cached() are treated as misses and refreshed.
+    """
+    key = models.CharField(max_length=255, unique=True)
+    payload = models.JSONField(default=list)
+    created_at = models.DateTimeField(db_index=True)
+
+    def __str__(self):
+        return self.key
 
 
 # ---------------------------------------------------------------------------

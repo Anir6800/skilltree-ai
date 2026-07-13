@@ -113,22 +113,40 @@ def onboarding_status(request):
     }
     """
     user = request.user
-    
+
     try:
         profile = user.onboarding_profile
         profile_data = OnboardingProfileSerializer(profile).data
-        
+
+        # Personalized-tree generation progress for the loading screen.
+        generation = None
+        tree = profile.generated_tree
+        if tree is not None:
+            total = tree.total_nodes or 0
+            done = tree.nodes_completed or 0
+            generation = {
+                'tree_id': str(tree.id),
+                'status': tree.status,
+                'stage': tree.stage,
+                'total_nodes': total,
+                'nodes_completed': done,
+                'percent': round(100 * done / total) if total else (100 if tree.status == 'ready' else 0),
+                'error': tree.error or None,
+            }
+
         return Response({
             'completed': True,
             'profile': profile_data,
-            'path_generated': profile.path_generated
+            'path_generated': profile.path_generated,
+            'generation': generation,
         }, status=status.HTTP_200_OK)
-        
+
     except OnboardingProfile.DoesNotExist:
         return Response({
             'completed': False,
             'profile': None,
-            'path_generated': False
+            'path_generated': False,
+            'generation': None,
         }, status=status.HTTP_200_OK)
 
 

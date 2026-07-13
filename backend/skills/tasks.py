@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-@shared_task(bind=True, max_retries=2)
+@shared_task(bind=True, max_retries=2, time_limit=360, soft_time_limit=330)
 def generate_tree_task(self, tree_id: str, topic: str, depth: int, user_id: int):
     """
     Async Celery task for generating an AI-powered skill tree.
@@ -79,43 +79,97 @@ def build_curriculum(user_id: int):
 @shared_task(bind=True, max_retries=2)
 def generate_personalized_path(self, user_id: int, profile_id: int):
     """
-    Generate personalized learning path based on onboarding profile.
+    Kick off the fully AI-generated personalized roadmap for a freshly
+    onboarded user. Creates the GeneratedSkillTree record (idempotent) and
+    dispatches the chunked generation task.
     """
     try:
         from users.onboarding_models import OnboardingProfile
-        from skills.models import Skill, SkillProgress
+        from skills.personalized_tree import PersonalizedTreeService
 
-        user = User.objects.get(id=user_id)
-        profile = OnboardingProfile.objects.get(id=profile_id)
+        profile = OnboardingProfile.objects.select_related('generated_tree').get(id=profile_id)
 
-        category_levels = profile.category_levels
-
-        # Unlock beginner skills matching user interests
-        beginner_skills = Skill.objects.filter(
-            category__in=category_levels.keys(),
-            difficulty__lte=2,
-        )[:10]
-
-        for skill in beginner_skills:
-            SkillProgress.objects.get_or_create(
-                user=user,
-                skill=skill,
-                defaults={'status': 'available'},
-            )
-
-        profile.path_generated = True
-        profile.save(update_fields=['path_generated'])
-
-        build_curriculum.delay(user.id)
-
-        return {'status': 'success', 'skills_unlocked': beginner_skills.count()}
+        tree = profile.generated_tree
+        if tree is None:
+            tree = PersonalizedTreeService().create_tree_for_profile(profile)
 
     except Exception as exc:
-        logger.error(f"[TASK] Path generation failed for user={user_id}: {exc}", exc_info=True)
-        # Mark as generated to unblock the user even on failure
+        logger.error(f"[TASK] Path generation dispatch failed for user={user_id}: {exc}", exc_info=True)
+        raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
+
+    try:
+        generate_personalized_tree_task.delay(str(tree.id))
+    except Exception as exc:
+        # Generation failure is recorded on the tree itself and recovered by
+        # TreeGenerationStatusView auto-resume / the resume endpoint — never
+        # fail onboarding over it (also keeps CELERY_TASK_ALWAYS_EAGER tests
+        # from bubbling LM errors into the HTTP response).
+        logger.error(f"[TASK] Tree generation errored for tree={tree.id}: {exc}", exc_info=True)
+
+    return {'status': 'queued', 'tree_id': str(tree.id)}
+
+
+@shared_task(bind=True, max_retries=3, time_limit=5400, soft_time_limit=5280)
+def generate_personalized_tree_task(self, tree_id: str):
+    """
+    Chunked, resumable generation of a personalized roadmap.
+    Idempotent — safe to re-dispatch after a crash (resume is driven by
+    tree.outline['created']). Marks the tree failed only after all retries.
+    """
+    from celery.exceptions import MaxRetriesExceededError
+    from skills.models import GeneratedSkillTree
+    from skills.personalized_tree import PersonalizedTreeService
+
+    try:
+        return PersonalizedTreeService().run(tree_id)
+    except Exception as exc:
         try:
-            from users.onboarding_models import OnboardingProfile
-            OnboardingProfile.objects.filter(id=profile_id).update(path_generated=True)
-        except Exception:
-            pass
-        return {'status': 'error', 'error': str(exc)}
+            raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
+        except MaxRetriesExceededError:
+            GeneratedSkillTree.objects.filter(id=tree_id).update(
+                status='failed', error=str(exc)[:2000],
+            )
+            raise
+
+
+@shared_task(bind=True, max_retries=1)
+def enrich_skill_courses_task(self, skill_id: int):
+    """
+    Fetch and save course recommendations for a single skill.
+    Used both standalone and as a fan-out worker from enrich_all_skills_courses_task.
+
+    Args:
+        skill_id: Primary key of the Skill to enrich
+    """
+    try:
+        from skills.models import Skill
+        from skills.course_fetcher import CourseFetcherService
+
+        skill = Skill.objects.get(id=skill_id)
+        fetcher = CourseFetcherService()
+        courses = fetcher.fetch_courses_for_skill(skill.title, max_results=5)
+        skill.courses = courses
+        skill.save(update_fields=['courses', 'updated_at'])
+        logger.info("[TASK] Courses enriched for skill=%d (%s): %d courses", skill_id, skill.title, len(courses))
+        return {'skill_id': skill_id, 'courses_count': len(courses)}
+
+    except Exception as exc:
+        logger.error("[TASK] Course enrichment failed for skill=%d: %s", skill_id, exc, exc_info=True)
+        raise self.retry(exc=exc, countdown=30)
+
+
+@shared_task
+def enrich_all_skills_courses_task():
+    """
+    Fan out enrich_skill_courses_task for every skill that has no courses yet.
+    Safe to re-run — skips skills that already have courses.
+    """
+    from skills.models import Skill
+
+    skill_ids = list(
+        Skill.objects.filter(courses=[]).values_list('id', flat=True)
+    )
+    logger.info("[TASK] Enqueuing course enrichment for %d skills", len(skill_ids))
+    for skill_id in skill_ids:
+        enrich_skill_courses_task.delay(skill_id)
+    return {'enqueued': len(skill_ids)}

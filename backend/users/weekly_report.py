@@ -213,7 +213,11 @@ class WeeklyReportGenerator:
                 messages=messages,
                 max_tokens=1000,
                 temperature=0.7,
-                response_format={"type": "json_object"}
+                # NOTE: Do NOT pass response_format here.
+                # Gemma (and most local LM Studio models) only accept
+                # type='json_schema' or 'text'. The system prompt already
+                # instructs the model to respond with JSON-only, which is
+                # sufficient for reliable parsing.
             )
 
             content = self.client.extract_content(response)

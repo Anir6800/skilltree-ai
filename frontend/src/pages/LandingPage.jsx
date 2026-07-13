@@ -1,22 +1,21 @@
 /**
  * SkillTree AI - Landing Page
- * Assembles all landing section components into a single scrollable page.
+ * Single-page flow: Hero, Features, How It Works, About, Contact.
+ * No persistent header/footer — a floating pill nav appears on scroll.
  */
 
-import  { useEffect } from 'react';
-import LandingNav from '../components/landing/LandingNav';
+import  { useEffect, useRef } from 'react';
+import FloatingNav from '../components/landing/FloatingNav';
 import HeroSection from '../components/landing/HeroSection';
-import SocialProofBar from '../components/landing/SocialProofBar';
 import FeaturesSection from '../components/landing/FeaturesSection';
 import HowItWorksSection from '../components/landing/HowItWorksSection';
-import ProductDemoSection from '../components/landing/ProductDemoSection';
-import TestimonialsSection from '../components/landing/TestimonialsSection';
-import PricingSection from '../components/landing/PricingSection';
-import FinalCTASection from '../components/landing/FinalCTASection';
-import LandingFooter from '../components/landing/LandingFooter';
+import AboutSection from '../components/landing/AboutSection';
+import ContactSection from '../components/landing/ContactSection';
 import '../styles/landing.css';
 
 const LandingPage = () => {
+  const glowRef = useRef(null);
+
   useEffect(() => {
     if (!window.location.hash) {
       return;
@@ -30,18 +29,28 @@ const LandingPage = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const handlePointerMove = (e) => {
+      const glow = glowRef.current;
+      if (!glow) return;
+      glow.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -50%)`;
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    return () => window.removeEventListener('pointermove', handlePointerMove);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#0a0c10] text-white overflow-x-hidden">
-      <LandingNav />
+    <div className="min-h-screen bg-[#050505] text-white overflow-x-hidden">
+      <div ref={glowRef} className="cursor-glow hidden md:block" />
+      <FloatingNav />
       <HeroSection />
-      <SocialProofBar />
       <FeaturesSection />
       <HowItWorksSection />
-      <ProductDemoSection />
-      <TestimonialsSection />
-      <PricingSection />
-      <FinalCTASection />
-      <LandingFooter />
+      <AboutSection />
+      <ContactSection />
     </div>
   );
 };

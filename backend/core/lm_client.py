@@ -88,6 +88,12 @@ class LMStudioClient:
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
+            # Disable chain-of-thought on hybrid-reasoning models (Gemma 4,
+            # Qwen3, ...). LM Studio honors chat_template_kwargs for models
+            # whose chat template supports it; the previously used
+            # "thinking" key was silently ignored and models burned the whole
+            # max_tokens budget on reasoning_content, leaving content empty.
+            "chat_template_kwargs": {"enable_thinking": False},
         }
 
         if response_format:
@@ -98,7 +104,10 @@ class LMStudioClient:
                 endpoint,
                 json=payload,
                 timeout=self.timeout,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Connection": "close",
+                },
             )
 
             if response.status_code != 200:
@@ -125,6 +134,8 @@ class LMStudioClient:
     def extract_content(self, response: Dict[str, Any]) -> str:
         """
         Extract text content from LM Studio response.
+        Falls back to 'reasoning_content' if 'content' is empty (safety net
+        for models that ignore the thinking:disabled flag).
 
         Args:
             response: Response dictionary from chat_completion
@@ -133,7 +144,15 @@ class LMStudioClient:
             Generated text content
         """
         try:
-            return response["choices"][0]["message"]["content"]
+            message = response["choices"][0]["message"]
+            content = message.get("content") or ""
+            if not content.strip():
+                # Fallback: some models put output in reasoning_content even
+                # when thinking should be disabled.
+                content = message.get("reasoning_content", "")
+            if not content.strip():
+                raise ValueError("Both 'content' and 'reasoning_content' are empty")
+            return content
         except (KeyError, IndexError) as e:
             raise ValueError(f"Invalid response format from LM Studio: {e}")
 

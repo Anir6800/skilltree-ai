@@ -1,9 +1,12 @@
+from datetime import timedelta
+
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Prefetch, Avg, Count, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 import logging
 from .models import Skill, SkillProgress, SkillPrerequisite, GeneratedSkillTree
 from .serializers import (
@@ -16,38 +19,20 @@ logger = logging.getLogger(__name__)
 
 class SkillTreeView(APIView):
     """
-    Returns the Skill Tree as a DAG (nodes and edges) for React Flow.
-    Only includes:
-    - Non-generated skills (always visible)
-    - Skills from published generated trees (is_public=True)
-    - Skills from user's own generated trees
+    Returns the personalized Skill Tree as a DAG (nodes and edges) for React Flow.
+
+    The old default/static tree has been removed: users only see skills from
+    their OWN AI-generated trees (plus staff-published public trees).
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        from django.db.models import Q
-        
-        try:
-            # Get published trees and user's own trees
-            published_trees = GeneratedSkillTree.objects.filter(is_public=True)
-            user_trees = GeneratedSkillTree.objects.filter(created_by=request.user)
-            
-            # Get IDs of skills from published/user trees
-            published_skill_ids = set(
-                Skill.objects.filter(
-                    generated_from_trees__in=published_trees | user_trees
-                ).values_list('id', flat=True)
-            )
-            
-            # Include non-generated skills + published generated skills
-            skills = Skill.objects.filter(
-                Q(generated_from_trees__isnull=True) |  # Non-generated skills
-                Q(id__in=published_skill_ids)  # Published generated skills
-            ).prefetch_related('prerequisites').distinct()
-        except Exception as e:
-            # Fallback if GeneratedSkillTree table doesn't exist (migration not run)
-            logger.warning(f"GeneratedSkillTree query failed: {str(e)}. Falling back to all skills.")
-            skills = Skill.objects.all().prefetch_related('prerequisites')
+        visible_trees = GeneratedSkillTree.objects.filter(
+            Q(is_public=True) | Q(created_by=request.user)
+        )
+        skills = Skill.objects.filter(
+            generated_from_trees__in=visible_trees
+        ).prefetch_related('prerequisites').distinct()
 
         # Category mapping for frontend
         CATEGORY_MAP = {
@@ -127,8 +112,13 @@ class SkillTreeView(APIView):
                 "difficulty": skill.difficulty,
                 "status": status_val,
                 "xpRequired": skill.xp_required_to_unlock,
+                "xpReward": skill.xp_reward,
+                "estimatedMinutes": skill.estimated_minutes,
+                "skillsGained": skill.skills_gained or [],
                 "prerequisites": prereq_list,
                 "questCount": quest_counts.get(skill.id, 0),
+                "courses": skill.courses or [],
+                "freeResources": skill.free_resources or [],
             })
 
             # Create edges from prerequisites (uses prefetch cache)
@@ -312,12 +302,17 @@ class AutoFillQuestsView(APIView):
             )
         
         try:
-            from skills.quest_autofill import QuestAutoFillService
-            
-            service = QuestAutoFillService()
-            # FIX: was calling non-existent method autofill_quests_for_tree;
-            # the correct method is execute_autofill.
-            result = service.execute_autofill(str(tree_id))
+            from skills.tasks import autofill_quests_task
+
+            # Dispatch the heavy LM Studio work to Celery so the ASGI worker
+            # is not blocked (was causing Daphne to kill the connection).
+            autofill_quests_task.delay(str(tree_id))
+
+            result = {
+                'status': 'generating',
+                'tree_id': str(tree_id),
+                'message': 'Quest auto-fill started. Progress streamed via WebSocket.',
+            }
 
             return Response(result, status=status.HTTP_202_ACCEPTED)
             
@@ -333,6 +328,80 @@ class AutoFillQuestsView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+
+class TreeGenerationStatusView(APIView):
+    """
+    GET /api/skills/generated/{tree_id}/status/
+    Polling endpoint for the generation loading screen. Survives page refresh.
+    Also auto-resumes generations whose worker died (no heartbeat for 7 min —
+    longer than the LM Studio request timeout, so a slow LM call is not
+    mistaken for a dead worker).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    STALE_AFTER = timedelta(minutes=7)
+
+    def get(self, request, tree_id):
+        tree = get_object_or_404(GeneratedSkillTree, id=tree_id)
+        if tree.created_by != request.user and not tree.is_public:
+            return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Auto-resume: heartbeat (tree.updated_at) is refreshed on every node,
+        # so staleness means the Celery worker died mid-generation.
+        if tree.status == 'generating' and timezone.now() - tree.updated_at > self.STALE_AFTER:
+            from skills.tasks import generate_personalized_tree_task
+            tree.save(update_fields=['updated_at'])  # bump so concurrent polls don't double-dispatch
+            generate_personalized_tree_task.delay(str(tree.id))
+            logger.info(f"[PTREE] Stale generation auto-resumed: tree={tree.id}")
+
+        total = tree.total_nodes or 0
+        done = tree.nodes_completed or 0
+        percent = round(100 * done / total) if total else (100 if tree.status == 'ready' else 0)
+
+        # ETA: measured pace when available, else ~5 min budget for the run.
+        if done and tree.status == 'generating':
+            elapsed = (timezone.now() - tree.created_at).total_seconds()
+            eta_seconds = int((elapsed / done) * (total - done))
+        elif tree.status == 'generating':
+            eta_seconds = 300
+        else:
+            eta_seconds = 0
+
+        return Response({
+            "tree_id": str(tree.id),
+            "topic": tree.topic,
+            "status": tree.status,
+            "stage": tree.stage,
+            "total_nodes": total,
+            "nodes_completed": done,
+            "percent": percent,
+            "eta_seconds": eta_seconds,
+            "error": tree.error or None,
+        })
+
+
+class ResumeTreeGenerationView(APIView):
+    """
+    POST /api/skills/generated/{tree_id}/resume/
+    Manual retry/resume for a failed or stalled generation. Idempotent —
+    already-created nodes are skipped by the pipeline.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, tree_id):
+        tree = get_object_or_404(GeneratedSkillTree, id=tree_id)
+        if tree.created_by != request.user and not request.user.is_staff:
+            return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+        if tree.status == 'ready':
+            return Response({"status": "ready", "tree_id": str(tree.id)})
+
+        from skills.tasks import generate_personalized_tree_task
+        tree.status = 'generating'
+        tree.error = ''
+        tree.save(update_fields=['status', 'error', 'updated_at'])
+        generate_personalized_tree_task.delay(str(tree.id))
+        return Response({"status": "generating", "tree_id": str(tree.id)}, status=status.HTTP_202_ACCEPTED)
 
 
 class SkillRadarView(APIView):

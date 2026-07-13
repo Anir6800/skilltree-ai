@@ -138,6 +138,11 @@ class Skill(TimeStampedMixin, Document):
     difficulty = fields.IntField(default=1)
     tree_depth = fields.IntField(default=0)
     xp_required_to_unlock = fields.IntField(default=0)
+    xp_reward = fields.IntField(default=100)
+    estimated_minutes = fields.IntField(default=60)
+    skills_gained = fields.ListField(default=list)
+    courses = fields.ListField(default=list)
+    free_resources = fields.ListField(default=list)
     created_at = fields.DateTimeField(default=_utcnow)
     updated_at = fields.DateTimeField(default=_utcnow)
 
@@ -197,6 +202,11 @@ class GeneratedSkillTree(TimeStampedMixin, Document):
     raw_ai_response = fields.DictField(default=dict)
     status = fields.StringField(choices=STATUS_CHOICES, default="generating", max_length=20)
     depth = fields.IntField(default=3)
+    total_nodes = fields.IntField(default=0)
+    nodes_completed = fields.IntField(default=0)
+    stage = fields.StringField(default="", max_length=100)
+    error = fields.StringField(default="")
+    outline = fields.DictField(default=dict)
     skills_created = fields.ListField(fields.ReferenceField(Skill, reverse_delete_rule=PULL))
     created_at = fields.DateTimeField(default=_utcnow)
     updated_at = fields.DateTimeField(default=_utcnow)
@@ -218,7 +228,7 @@ class GeneratedSkillTree(TimeStampedMixin, Document):
 # ===========================================================================
 
 class Quest(TimeStampedMixin, Document):
-    TYPE_CHOICES = ("coding", "debugging", "mcq")
+    TYPE_CHOICES = ("coding", "debugging", "mcq", "exercise", "challenge")
 
     legacy_id = fields.IntField(null=True)
     skill = fields.ReferenceField(Skill, required=True, reverse_delete_rule=CASCADE)

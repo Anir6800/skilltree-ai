@@ -44,6 +44,19 @@ class SkillTreeGenerationConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
     
+    async def generation_progress(self, event):
+        """
+        Streams chunked personalized-tree generation progress.
+
+        Event structure:
+        {
+            'type': 'generation_progress',
+            'tree_id': str, 'status': str, 'stage': str,
+            'nodes_completed': int, 'total_nodes': int, 'percent': int,
+        }
+        """
+        await self.send(text_data=json.dumps(event))
+
     async def tree_generated(self, event):
         """
         Receives tree generation completion event.

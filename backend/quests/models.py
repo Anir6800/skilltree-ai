@@ -35,6 +35,8 @@ class Quest(models.Model):
         ('coding', 'Coding'),
         ('debugging', 'Debugging'),
         ('mcq', 'Multiple Choice'),
+        ('exercise', 'Practical Exercise'),
+        ('challenge', 'Mini Challenge'),
     ]
 
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='quests')

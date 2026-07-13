@@ -120,11 +120,15 @@ class SkillTreeGeneratorService:
             logger.info("[TREE] Creating prerequisite edges")
             self._create_prerequisites(prerequisites_data, skill_id_map)
 
-            # Step 6: Create stub quests for every skill
+            # Step 6: Attach course recommendations (Coursera + Udemy via Apify)
+            logger.info("[TREE] Fetching course recommendations")
+            self._attach_courses(skills)
+
+            # Step 7: Create stub quests for every skill
             logger.info("[TREE] Creating stub quests")
             self._create_stub_quests(skills)
 
-            # Step 7: Update tree metadata
+            # Step 8: Update tree metadata
             tree.skills_created.set(skills)
             tree.raw_ai_response = ai_response
             tree.depth = depth
@@ -448,6 +452,32 @@ Return ONLY valid JSON with this EXACT structure:
 
         Quest.objects.bulk_create(quests_to_create)
         logger.info(f"[TREE] Created {len(quests_to_create)} stub quests for {len(skills)} skills")
+
+
+    def _attach_courses(self, skills: List[Skill]):
+        """
+        Fetch Coursera + Udemy courses for each skill and persist them.
+        Uses CourseFetcherService (SRP). Failures per-skill are logged and
+        skipped so a single Apify error never aborts the whole tree.
+        """
+        from skills.course_fetcher import CourseFetcherService
+        fetcher = CourseFetcherService()
+        to_update: List[Skill] = []
+
+        for skill in skills:
+            try:
+                courses = fetcher.fetch_courses_for_skill(skill.title, max_results=5)
+                skill.courses = courses
+                to_update.append(skill)
+            except Exception as exc:
+                logger.warning(
+                    "[TREE] Course fetch failed for skill %r: %s",
+                    skill.title, exc,
+                )
+
+        if to_update:
+            Skill.objects.bulk_update(to_update, ['courses'])
+            logger.info("[TREE] Attached courses to %d skills", len(to_update))
 
 
 # ---------------------------------------------------------------------------

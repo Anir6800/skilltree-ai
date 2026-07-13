@@ -135,3 +135,6 @@ zope.interface==8.3
 mongoengine==0.29.1
 pymongo==4.10.1
 dnspython==2.7.0
+
+# External data APIs for personalized tree generation
+apify-client==1.8.1   # Coursera/Udemy course scraping actors

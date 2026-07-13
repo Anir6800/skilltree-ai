@@ -146,8 +146,14 @@ api.interceptors.response.use(
       });
     }
     
+    // Don't attempt token refresh for the login/refresh endpoints themselves —
+    // a 401 there means bad credentials or an expired refresh token, not an
+    // expired access token that a refresh could fix.
+    const isAuthEndpoint = originalRequest?.url?.includes('/api/auth/login/')
+      || originalRequest?.url?.includes('/api/token/refresh/');
+
     // If 401 and haven't tried to refresh yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
       
       // If already refreshing, wait for that promise
